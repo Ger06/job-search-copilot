@@ -23,8 +23,12 @@ App que tailorea CVs y cover letters para búsquedas laborales, usando un
 - Ports & Adapters: la lógica de negocio nunca importa el SDK de Groq ni el
   cliente de Supabase directamente. Siempre a través de interfaces
   `LLMProvider` y `VectorStore` definidas en `backend/src/ports/`.
-- Cada función en `services/` tiene su test en `services/__tests__/`, usando
+- Backend organizado por entidad (`backend/src/<entidad>/`). Cada función de
+  `*-service.ts` tiene su test en el `__tests__/` de esa misma carpeta, usando
   Vitest (no Jest).
+- Cada entidad expone su acceso a datos vía una interfaz `*Repository`, con
+  implementación in-memory (para tests) y una implementación Supabase real.
+  Los tests de servicios usan siempre el repo in-memory, nunca Supabase real.
 - Nombres de archivo en kebab-case. Componentes React en PascalCase.
 
 Reglas no negociables (una página, cero métricas inventadas, tests deben
