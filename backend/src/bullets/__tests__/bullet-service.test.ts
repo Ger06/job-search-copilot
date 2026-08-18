@@ -4,11 +4,11 @@ import { createBullet } from "../bullet-service.js";
 describe("createBullet", () => {
   it("crea un bullet con el texto dado", () => {
     const bullet = createBullet({
-      text: "Reduje el tiempo de build en 40%",
+      text: "Corriste en floresta",
       workExperienceId: "we-1",
     });
 
-    expect(bullet.text).toBe("Reduje el tiempo de build en 40%");
+    expect(bullet.text).toBe("Corriste en floresta");
   });
 
   it("asigna un id único a cada bullet creado", () => {
