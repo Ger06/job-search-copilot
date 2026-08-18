@@ -18,11 +18,11 @@ function createTestWorkExperience(repository: InMemoryWorkExperienceRepository) 
 }
 
 describe("createBullet", () => {
-  it("crea un bullet con el texto dado", () => {
+  it("crea un bullet con el texto dado", async () => {
     const workExperienceRepository = new InMemoryWorkExperienceRepository();
-    const workExperience = createTestWorkExperience(workExperienceRepository);
+    const workExperience = await createTestWorkExperience(workExperienceRepository);
 
-    const bullet = createBullet(
+    const bullet = await createBullet(
       { text: "Corriste en floresta", workExperienceId: workExperience.id },
       new InMemoryBulletRepository(),
       workExperienceRepository,
@@ -31,17 +31,17 @@ describe("createBullet", () => {
     expect(bullet.text).toBe("Corriste en floresta");
   });
 
-  it("asigna un id único a cada bullet creado", () => {
+  it("asigna un id único a cada bullet creado", async () => {
     const workExperienceRepository = new InMemoryWorkExperienceRepository();
-    const workExperience = createTestWorkExperience(workExperienceRepository);
+    const workExperience = await createTestWorkExperience(workExperienceRepository);
     const bulletRepository = new InMemoryBulletRepository();
 
-    const first = createBullet(
+    const first = await createBullet(
       { text: "Reduje el tiempo de build en 40%", workExperienceId: workExperience.id },
       bulletRepository,
       workExperienceRepository,
     );
-    const second = createBullet(
+    const second = await createBullet(
       { text: "Reduje el tiempo de build en 40%", workExperienceId: workExperience.id },
       bulletRepository,
       workExperienceRepository,
@@ -52,12 +52,12 @@ describe("createBullet", () => {
     expect(first.id).not.toBe(second.id);
   });
 
-  it("asigna la fecha de creación al bullet creado", () => {
+  it("asigna la fecha de creación al bullet creado", async () => {
     const workExperienceRepository = new InMemoryWorkExperienceRepository();
-    const workExperience = createTestWorkExperience(workExperienceRepository);
+    const workExperience = await createTestWorkExperience(workExperienceRepository);
 
     const before = new Date();
-    const bullet = createBullet(
+    const bullet = await createBullet(
       { text: "Reduje el tiempo de build en 40%", workExperienceId: workExperience.id },
       new InMemoryBulletRepository(),
       workExperienceRepository,
@@ -69,11 +69,11 @@ describe("createBullet", () => {
     expect(bullet.createdAt.getTime()).toBeLessThanOrEqual(after.getTime());
   });
 
-  it("asigna el workExperienceId dado al bullet creado", () => {
+  it("asigna el workExperienceId dado al bullet creado", async () => {
     const workExperienceRepository = new InMemoryWorkExperienceRepository();
-    const workExperience = createTestWorkExperience(workExperienceRepository);
+    const workExperience = await createTestWorkExperience(workExperienceRepository);
 
-    const bullet = createBullet(
+    const bullet = await createBullet(
       { text: "Reduje el tiempo de build en 40%", workExperienceId: workExperience.id },
       new InMemoryBulletRepository(),
       workExperienceRepository,
@@ -82,62 +82,62 @@ describe("createBullet", () => {
     expect(bullet.workExperienceId).toBe(workExperience.id);
   });
 
-  it("persiste el bullet en el repo", () => {
+  it("persiste el bullet en el repo", async () => {
     const workExperienceRepository = new InMemoryWorkExperienceRepository();
-    const workExperience = createTestWorkExperience(workExperienceRepository);
+    const workExperience = await createTestWorkExperience(workExperienceRepository);
     const bulletRepository = new InMemoryBulletRepository();
 
-    const bullet = createBullet(
+    const bullet = await createBullet(
       { text: "Corriste en floresta", workExperienceId: workExperience.id },
       bulletRepository,
       workExperienceRepository,
     );
 
-    expect(bulletRepository.findById(bullet.id)).toEqual(bullet);
+    expect(await bulletRepository.findById(bullet.id)).toEqual(bullet);
   });
 
-  it("lanza NotFoundError si el workExperienceId no corresponde a ningún work experience existente", () => {
+  it("lanza NotFoundError si el workExperienceId no corresponde a ningún work experience existente", async () => {
     const workExperienceRepository = new InMemoryWorkExperienceRepository();
     const bulletRepository = new InMemoryBulletRepository();
 
-    expect(() =>
+    await expect(
       createBullet(
         { text: "Corriste en floresta", workExperienceId: "no-existe" },
         bulletRepository,
         workExperienceRepository,
       ),
-    ).toThrow(new NotFoundError("WorkExperience", "no-existe"));
+    ).rejects.toThrow(new NotFoundError("WorkExperience", "no-existe"));
   });
 });
 
 describe("findBulletById", () => {
-  it("devuelve undefined si no existe un bullet con ese id", () => {
+  it("devuelve undefined si no existe un bullet con ese id", async () => {
     const repository = new InMemoryBulletRepository();
 
-    const result = findBulletById("no-existe", repository);
+    const result = await findBulletById("no-existe", repository);
 
     expect(result).toBeUndefined();
   });
 });
 
 describe("listBullets", () => {
-  it("devuelve todos los bullets guardados", () => {
+  it("devuelve todos los bullets guardados", async () => {
     const workExperienceRepository = new InMemoryWorkExperienceRepository();
-    const workExperience = createTestWorkExperience(workExperienceRepository);
+    const workExperience = await createTestWorkExperience(workExperienceRepository);
     const bulletRepository = new InMemoryBulletRepository();
 
-    const first = createBullet(
+    const first = await createBullet(
       { text: "Corriste en floresta", workExperienceId: workExperience.id },
       bulletRepository,
       workExperienceRepository,
     );
-    const second = createBullet(
+    const second = await createBullet(
       { text: "Reduje el tiempo de build en 40%", workExperienceId: workExperience.id },
       bulletRepository,
       workExperienceRepository,
     );
 
-    const result = listBullets(bulletRepository);
+    const result = await listBullets(bulletRepository);
 
     expect(result).toEqual([first, second]);
   });

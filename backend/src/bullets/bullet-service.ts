@@ -4,12 +4,12 @@ import type { BulletRepository } from "./bullet-repository.js";
 import type { WorkExperienceRepository } from "../work-experiences/work-experience-repository.js";
 import { NotFoundError } from "../errors/not-found-error.js";
 
-export function createBullet(
+export async function createBullet(
   input: { text: string; workExperienceId: string },
   repository: BulletRepository,
   workExperienceRepository: WorkExperienceRepository,
-): Bullet {
-  if (workExperienceRepository.findById(input.workExperienceId) === undefined) {
+): Promise<Bullet> {
+  if ((await workExperienceRepository.findById(input.workExperienceId)) === undefined) {
     throw new NotFoundError("WorkExperience", input.workExperienceId);
   }
 
@@ -23,10 +23,13 @@ export function createBullet(
   return repository.create(bullet);
 }
 
-export function findBulletById(id: string, repository: BulletRepository): Bullet | undefined {
+export async function findBulletById(
+  id: string,
+  repository: BulletRepository,
+): Promise<Bullet | undefined> {
   return repository.findById(id);
 }
 
-export function listBullets(repository: BulletRepository): Bullet[] {
+export async function listBullets(repository: BulletRepository): Promise<Bullet[]> {
   return repository.list();
 }

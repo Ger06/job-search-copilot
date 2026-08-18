@@ -4,16 +4,16 @@ import type { BulletRepository } from "./bullet-repository.js";
 export class InMemoryBulletRepository implements BulletRepository {
   private readonly bullets = new Map<string, Bullet>();
 
-  create(bullet: Bullet): Bullet {
+  async create(bullet: Bullet): Promise<Bullet> {
     this.bullets.set(bullet.id, bullet);
     return bullet;
   }
 
-  findById(id: string): Bullet | undefined {
+  async findById(id: string): Promise<Bullet | undefined> {
     return this.bullets.get(id);
   }
 
-  list(): Bullet[] {
+  async list(): Promise<Bullet[]> {
     return Array.from(this.bullets.values());
   }
 }

@@ -4,24 +4,24 @@ import type { JobDescriptionRepository } from "./job-description-repository.js";
 export class InMemoryJobDescriptionRepository implements JobDescriptionRepository {
   private readonly jobDescriptions = new Map<string, JobDescription>();
 
-  create(jobDescription: JobDescription): JobDescription {
+  async create(jobDescription: JobDescription): Promise<JobDescription> {
     this.jobDescriptions.set(jobDescription.id, jobDescription);
     return jobDescription;
   }
 
-  findById(id: string): JobDescription | undefined {
+  async findById(id: string): Promise<JobDescription | undefined> {
     return this.jobDescriptions.get(id);
   }
 
-  list(): JobDescription[] {
+  async list(): Promise<JobDescription[]> {
     return Array.from(this.jobDescriptions.values());
   }
 
-  findByCompanyAndRole(company: string, role: string): JobDescription | undefined {
+  async findByCompanyAndRole(company: string, role: string): Promise<JobDescription | undefined> {
     const normalizedCompany = company.trim().toLowerCase();
     const normalizedRole = role.trim().toLowerCase();
 
-    return this.list().find(
+    return (await this.list()).find(
       (jd) =>
         jd.company.trim().toLowerCase() === normalizedCompany &&
         jd.role.trim().toLowerCase() === normalizedRole,

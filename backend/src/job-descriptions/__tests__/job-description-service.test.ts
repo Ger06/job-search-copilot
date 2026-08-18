@@ -8,8 +8,8 @@ import { InMemoryJobDescriptionRepository } from "../in-memory-job-description-r
 import { DuplicateError } from "../../errors/duplicate-error.js";
 
 describe("createJobDescription", () => {
-  it("crea una JobDescription con la company dada", () => {
-    const jobDescription = createJobDescription(
+  it("crea una JobDescription con la company dada", async () => {
+    const jobDescription = await createJobDescription(
       {
         company: "Acme Corp",
         role: "Backend Engineer",
@@ -21,8 +21,8 @@ describe("createJobDescription", () => {
     expect(jobDescription.company).toBe("Acme Corp");
   });
 
-  it("asigna el role dado", () => {
-    const jobDescription = createJobDescription(
+  it("asigna el role dado", async () => {
+    const jobDescription = await createJobDescription(
       {
         company: "Acme Corp",
         role: "Backend Engineer",
@@ -34,8 +34,8 @@ describe("createJobDescription", () => {
     expect(jobDescription.role).toBe("Backend Engineer");
   });
 
-  it("asigna el rawText dado", () => {
-    const jobDescription = createJobDescription(
+  it("asigna el rawText dado", async () => {
+    const jobDescription = await createJobDescription(
       {
         company: "Acme Corp",
         role: "Backend Engineer",
@@ -49,9 +49,9 @@ describe("createJobDescription", () => {
     );
   });
 
-  it("asigna un id único a cada JobDescription creada", () => {
+  it("asigna un id único a cada JobDescription creada", async () => {
     const repository = new InMemoryJobDescriptionRepository();
-    const first = createJobDescription(
+    const first = await createJobDescription(
       {
         company: "Acme Corp",
         role: "Backend Engineer",
@@ -59,7 +59,7 @@ describe("createJobDescription", () => {
       },
       repository,
     );
-    const second = createJobDescription(
+    const second = await createJobDescription(
       {
         company: "Beta Inc",
         role: "Tech Lead",
@@ -73,9 +73,9 @@ describe("createJobDescription", () => {
     expect(first.id).not.toBe(second.id);
   });
 
-  it("asigna la fecha de creación a la JobDescription creada", () => {
+  it("asigna la fecha de creación a la JobDescription creada", async () => {
     const before = new Date();
-    const jobDescription = createJobDescription(
+    const jobDescription = await createJobDescription(
       {
         company: "Acme Corp",
         role: "Backend Engineer",
@@ -90,10 +90,10 @@ describe("createJobDescription", () => {
     expect(jobDescription.createdAt.getTime()).toBeLessThanOrEqual(after.getTime());
   });
 
-  it("persiste la JobDescription en el repo", () => {
+  it("persiste la JobDescription en el repo", async () => {
     const repository = new InMemoryJobDescriptionRepository();
 
-    const jobDescription = createJobDescription(
+    const jobDescription = await createJobDescription(
       {
         company: "Acme Corp",
         role: "Backend Engineer",
@@ -102,24 +102,24 @@ describe("createJobDescription", () => {
       repository,
     );
 
-    expect(repository.findById(jobDescription.id)).toEqual(jobDescription);
+    expect(await repository.findById(jobDescription.id)).toEqual(jobDescription);
   });
 });
 
 describe("findJobDescriptionById", () => {
-  it("devuelve undefined si no existe una JobDescription con ese id", () => {
+  it("devuelve undefined si no existe una JobDescription con ese id", async () => {
     const repository = new InMemoryJobDescriptionRepository();
 
-    const result = findJobDescriptionById("no-existe", repository);
+    const result = await findJobDescriptionById("no-existe", repository);
 
     expect(result).toBeUndefined();
   });
 });
 
 describe("listJobDescriptions", () => {
-  it("devuelve todas las JobDescriptions guardadas", () => {
+  it("devuelve todas las JobDescriptions guardadas", async () => {
     const repository = new InMemoryJobDescriptionRepository();
-    const first = createJobDescription(
+    const first = await createJobDescription(
       {
         company: "Acme Corp",
         role: "Backend Engineer",
@@ -127,7 +127,7 @@ describe("listJobDescriptions", () => {
       },
       repository,
     );
-    const second = createJobDescription(
+    const second = await createJobDescription(
       {
         company: "Beta Inc",
         role: "Tech Lead",
@@ -136,17 +136,17 @@ describe("listJobDescriptions", () => {
       repository,
     );
 
-    const result = listJobDescriptions(repository);
+    const result = await listJobDescriptions(repository);
 
     expect(result).toEqual([first, second]);
   });
 });
 
 describe("createJobDescription — duplicados", () => {
-  it("crea la JobDescription cuando no existe ninguna previa con la misma company y role", () => {
+  it("crea la JobDescription cuando no existe ninguna previa con la misma company y role", async () => {
     const repository = new InMemoryJobDescriptionRepository();
 
-    const jobDescription = createJobDescription(
+    const jobDescription = await createJobDescription(
       {
         company: "Acme Corp",
         role: "Backend Engineer",
@@ -158,9 +158,9 @@ describe("createJobDescription — duplicados", () => {
     expect(jobDescription.company).toBe("Acme Corp");
   });
 
-  it("lanza DuplicateError si ya existe una JobDescription con la misma company y role", () => {
+  it("lanza DuplicateError si ya existe una JobDescription con la misma company y role", async () => {
     const repository = new InMemoryJobDescriptionRepository();
-    createJobDescription(
+    await createJobDescription(
       {
         company: "Acme Corp",
         role: "Backend Engineer",
@@ -169,7 +169,7 @@ describe("createJobDescription — duplicados", () => {
       repository,
     );
 
-    expect(() =>
+    await expect(
       createJobDescription(
         {
           company: "Acme Corp",
@@ -178,12 +178,14 @@ describe("createJobDescription — duplicados", () => {
         },
         repository,
       ),
-    ).toThrow(new DuplicateError("JobDescription", { company: "Acme Corp", role: "Backend Engineer" }));
+    ).rejects.toThrow(
+      new DuplicateError("JobDescription", { company: "Acme Corp", role: "Backend Engineer" }),
+    );
   });
 
-  it("permite crear una JobDescription con la misma company pero distinto role", () => {
+  it("permite crear una JobDescription con la misma company pero distinto role", async () => {
     const repository = new InMemoryJobDescriptionRepository();
-    createJobDescription(
+    await createJobDescription(
       {
         company: "Acme Corp",
         role: "Backend Engineer",
@@ -192,7 +194,7 @@ describe("createJobDescription — duplicados", () => {
       repository,
     );
 
-    const jobDescription = createJobDescription(
+    const jobDescription = await createJobDescription(
       {
         company: "Acme Corp",
         role: "Tech Lead",
@@ -204,9 +206,9 @@ describe("createJobDescription — duplicados", () => {
     expect(jobDescription.role).toBe("Tech Lead");
   });
 
-  it("lanza DuplicateError si ya existe la misma company y role salvo mayúsculas y espacios", () => {
+  it("lanza DuplicateError si ya existe la misma company y role salvo mayúsculas y espacios", async () => {
     const repository = new InMemoryJobDescriptionRepository();
-    createJobDescription(
+    await createJobDescription(
       {
         company: "Acme Corp",
         role: "Backend Engineer",
@@ -215,7 +217,7 @@ describe("createJobDescription — duplicados", () => {
       repository,
     );
 
-    expect(() =>
+    await expect(
       createJobDescription(
         {
           company: "acme corp ",
@@ -224,6 +226,6 @@ describe("createJobDescription — duplicados", () => {
         },
         repository,
       ),
-    ).toThrow(DuplicateError);
+    ).rejects.toThrow(DuplicateError);
   });
 });

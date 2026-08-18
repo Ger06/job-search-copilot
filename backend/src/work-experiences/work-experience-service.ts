@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { WorkExperience } from "./work-experience.js";
 import type { WorkExperienceRepository } from "./work-experience-repository.js";
 
-export function createWorkExperience(
+export async function createWorkExperience(
   input: {
     company: string;
     role: string;
@@ -11,7 +11,7 @@ export function createWorkExperience(
     order: number;
   },
   repository: WorkExperienceRepository,
-): WorkExperience {
+): Promise<WorkExperience> {
   const workExperience: WorkExperience = {
     id: randomUUID(),
     company: input.company,
@@ -24,16 +24,18 @@ export function createWorkExperience(
   return repository.create(workExperience);
 }
 
-export function findWorkExperienceById(
+export async function findWorkExperienceById(
   id: string,
   repository: WorkExperienceRepository,
-): WorkExperience | undefined {
+): Promise<WorkExperience | undefined> {
   return repository.findById(id);
 }
 
 // Cuando se genere un CV, deben aparecer TODAS las WorkExperience del
 // historial, nunca menos — esto va a ser un hook más adelante sobre este
 // listado.
-export function listWorkExperiences(repository: WorkExperienceRepository): WorkExperience[] {
+export async function listWorkExperiences(
+  repository: WorkExperienceRepository,
+): Promise<WorkExperience[]> {
   return repository.list();
 }

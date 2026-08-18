@@ -3,15 +3,15 @@ import type { JobDescription } from "./job-description.js";
 import type { JobDescriptionRepository } from "./job-description-repository.js";
 import { DuplicateError } from "../errors/duplicate-error.js";
 
-export function createJobDescription(
+export async function createJobDescription(
   input: {
     company: string;
     role: string;
     rawText: string;
   },
   repository: JobDescriptionRepository,
-): JobDescription {
-  if (repository.findByCompanyAndRole(input.company, input.role) !== undefined) {
+): Promise<JobDescription> {
+  if ((await repository.findByCompanyAndRole(input.company, input.role)) !== undefined) {
     throw new DuplicateError("JobDescription", { company: input.company, role: input.role });
   }
 
@@ -26,13 +26,15 @@ export function createJobDescription(
   return repository.create(jobDescription);
 }
 
-export function findJobDescriptionById(
+export async function findJobDescriptionById(
   id: string,
   repository: JobDescriptionRepository,
-): JobDescription | undefined {
+): Promise<JobDescription | undefined> {
   return repository.findById(id);
 }
 
-export function listJobDescriptions(repository: JobDescriptionRepository): JobDescription[] {
+export async function listJobDescriptions(
+  repository: JobDescriptionRepository,
+): Promise<JobDescription[]> {
   return repository.list();
 }
