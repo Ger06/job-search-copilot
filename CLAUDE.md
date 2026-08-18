@@ -22,7 +22,8 @@ App que tailorea CVs y cover letters para búsquedas laborales, usando un
 
 - Ports & Adapters: la lógica de negocio nunca importa el SDK de Groq ni el
   cliente de Supabase directamente. Siempre a través de interfaces
-  `LLMProvider` y `VectorStore` definidas en `backend/src/ports/`.
+  `LLMProvider`, `VectorStore` y `EmbeddingProvider` definidas en
+  `backend/src/ports/`.
 - Backend organizado por entidad (`backend/src/<entidad>/`). Cada función de
   `*-service.ts` tiene su test en el `__tests__/` de esa misma carpeta, usando
   Vitest (no Jest).

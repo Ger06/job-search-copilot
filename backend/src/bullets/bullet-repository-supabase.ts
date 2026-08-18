@@ -6,14 +6,22 @@ type BulletRow = {
   id: string;
   work_experience_id: string;
   text: string;
+  embedding: string | number[];
   created_at: string;
 };
+
+// La columna `vector` de Supabase puede llegar como string ("[0.1,0.2,...]")
+// o como array según la versión del cliente — se normaliza acá.
+function parseEmbedding(embedding: string | number[]): number[] {
+  return typeof embedding === "string" ? JSON.parse(embedding) : embedding;
+}
 
 function toDomain(row: BulletRow): Bullet {
   return {
     id: row.id,
     text: row.text,
     workExperienceId: row.work_experience_id,
+    embedding: parseEmbedding(row.embedding),
     createdAt: new Date(row.created_at),
   };
 }
@@ -23,6 +31,7 @@ function toRow(bullet: Bullet): BulletRow {
     id: bullet.id,
     work_experience_id: bullet.workExperienceId,
     text: bullet.text,
+    embedding: bullet.embedding,
     created_at: bullet.createdAt.toISOString(),
   };
 }
@@ -53,6 +62,19 @@ export class BulletRepositorySupabase implements BulletRepository {
 
     if (error) {
       throw new Error(`Error al listar bullets: ${error.message}`);
+    }
+
+    return (data as BulletRow[]).map(toDomain);
+  }
+
+  async findByWorkExperienceId(workExperienceId: string): Promise<Bullet[]> {
+    const { data, error } = await supabase
+      .from("bullets")
+      .select()
+      .eq("work_experience_id", workExperienceId);
+
+    if (error) {
+      throw new Error(`Error al buscar bullets por work_experience_id: ${error.message}`);
     }
 
     return (data as BulletRow[]).map(toDomain);

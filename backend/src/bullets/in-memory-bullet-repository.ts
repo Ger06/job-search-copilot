@@ -16,4 +16,8 @@ export class InMemoryBulletRepository implements BulletRepository {
   async list(): Promise<Bullet[]> {
     return Array.from(this.bullets.values());
   }
+
+  async findByWorkExperienceId(workExperienceId: string): Promise<Bullet[]> {
+    return (await this.list()).filter((bullet) => bullet.workExperienceId === workExperienceId);
+  }
 }

@@ -20,6 +20,7 @@ describe("BulletRepositorySupabase (integración)", () => {
       id: randomUUID(),
       text: "Corriste en floresta",
       workExperienceId: workExperience.id,
+      embedding: new Array(384).fill(0.1),
       createdAt: new Date(),
     });
 
