@@ -1,0 +1,17 @@
+{ "env": {
+    "CLAUDE_CODE_GIT_BASH_PATH": "C:\\Program Files\\Git\\usr\\bin\\bash.exe"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"%CLAUDE_CODE_GIT_BASH_PATH%\" .claude/hooks/check-tests-before-commit.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
