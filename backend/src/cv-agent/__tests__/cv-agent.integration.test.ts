@@ -11,6 +11,28 @@ import type { BulletRepository } from "../../bullets/bullet-repository.js";
 import { InMemorySavedCVRepository } from "../../saved-cvs/in-memory-saved-cv-repository.js";
 import { LocalEmbeddingProvider } from "../../ports/local-embedding-provider.js";
 import { GroqLLMProvider } from "../../ports/groq-llm-provider.js";
+import { FabricatedContentError } from "../../errors/fabricated-content-error.js";
+import type { EmbeddingProvider } from "../../ports/embedding-provider.js";
+import type { LLMProvider } from "../../ports/llm-provider.js";
+
+function createFakeEmbeddingProvider(vector: number[] = [0.1, 0.2, 0.3]): EmbeddingProvider {
+  return {
+    async embed() {
+      return vector;
+    },
+  };
+}
+
+function createFakeLLMProviderReturning(firstCallContent: string): LLMProvider {
+  let callIndex = 0;
+  return {
+    async generate() {
+      const content = callIndex === 0 ? firstCallContent : "CONTENIDO DE LA COVER LETTER";
+      callIndex += 1;
+      return content;
+    },
+  };
+}
 
 // Wrapper de solo-lectura sobre BulletRepository que registra, para cada
 // llamada real a findByWorkExperienceId (la que hace la tool del agente),
@@ -141,4 +163,34 @@ describe("generateTailoredCV — evals con Groq real (integración)", () => {
     },
     60000,
   );
+});
+
+describe("generateTailoredCV — guardrail anti-identidad-inventada", () => {
+  it("bloquea la generación y no persiste nada si el content tiene un email inventado", async () => {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createJobDescription(
+      { company: "Acme Corp", role: "Backend Engineer", rawText: "Buscamos un Backend Engineer con experiencia en Node.js" },
+      jobDescriptionRepository,
+    );
+    const workExperienceRepository = new InMemoryWorkExperienceRepository();
+    await createWorkExperience(
+      { company: "Beta Inc", role: "Backend Engineer", startDate: new Date("2020-03-01"), order: 1 },
+      workExperienceRepository,
+    );
+    const bulletRepository = new InMemoryBulletRepository();
+    const savedCVRepository = new InMemorySavedCVRepository();
+    const embeddingProvider = createFakeEmbeddingProvider();
+    const llmProvider = createFakeLLMProviderReturning("Contactame a juan.perez@email.com");
+
+    await expect(
+      generateTailoredCV(
+        jobDescription.id,
+        { jobDescriptionRepository, workExperienceRepository, bulletRepository, savedCVRepository },
+        embeddingProvider,
+        llmProvider,
+      ),
+    ).rejects.toThrow(FabricatedContentError);
+
+    expect(await savedCVRepository.list()).toEqual([]);
+  });
 });

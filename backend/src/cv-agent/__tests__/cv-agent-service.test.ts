@@ -9,6 +9,7 @@ import { createBullet } from "../../bullets/bullet-service.js";
 import { InMemoryBulletRepository } from "../../bullets/in-memory-bullet-repository.js";
 import { InMemorySavedCVRepository } from "../../saved-cvs/in-memory-saved-cv-repository.js";
 import { NotFoundError } from "../../errors/not-found-error.js";
+import { FabricatedContentError } from "../../errors/fabricated-content-error.js";
 import type { EmbeddingProvider } from "../../ports/embedding-provider.js";
 import type { LLMMessage, LLMProvider, LLMToolDefinition, LLMToolExecutor } from "../../ports/llm-provider.js";
 
@@ -187,6 +188,29 @@ describe("generateTailoredCV", () => {
     const secondCallUserMessage = secondCall?.messages.find((message) => message.role === "user");
     expect(secondCall?.tools).toEqual([]);
     expect(secondCallUserMessage?.content).toContain("CONTENIDO DEL CV");
+  });
+
+  it("lanza FabricatedContentError y no persiste nada si el LLMProvider devuelve un content con un email inventado", async () => {
+    const fixture = await setUpFixture();
+    const llmProvider = createFakeLLMProvider(async (_call, _executeTool, callIndex) => {
+      return callIndex === 0 ? "Contactame a juan.perez@email.com" : "CONTENIDO DE LA COVER LETTER";
+    });
+
+    await expect(
+      generateTailoredCV(
+        fixture.jobDescription.id,
+        {
+          jobDescriptionRepository: fixture.jobDescriptionRepository,
+          workExperienceRepository: fixture.workExperienceRepository,
+          bulletRepository: fixture.bulletRepository,
+          savedCVRepository: fixture.savedCVRepository,
+        },
+        fixture.embeddingProvider,
+        llmProvider,
+      ),
+    ).rejects.toThrow(FabricatedContentError);
+
+    expect(await fixture.savedCVRepository.list()).toEqual([]);
   });
 
   it("persiste el SavedCV en el repo", async () => {

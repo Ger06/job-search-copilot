@@ -13,6 +13,7 @@ import type { LLMProvider } from "../ports/llm-provider.js";
 import { NotFoundError } from "../errors/not-found-error.js";
 import { CV_AGENT_SYSTEM_PROMPT } from "./cv-agent-system-prompt.js";
 import { GET_RELEVANT_BULLETS_TOOL, createGetRelevantBulletsExecutor } from "./get-relevant-bullets-tool.js";
+import { validateNoFabricatedContactInfo } from "./validate-no-fabricated-contact-info.js";
 
 function formatWorkExperienceDates(workExperience: WorkExperience): string {
   const start = workExperience.startDate.toISOString().slice(0, 10);
@@ -77,6 +78,7 @@ export async function generateTailoredCV(
     [GET_RELEVANT_BULLETS_TOOL],
     createGetRelevantBulletsExecutor(jobDescription.rawText, repositories.bulletRepository, embeddingProvider),
   );
+  validateNoFabricatedContactInfo(content);
 
   const coverLetterContent = await llmProvider.generate(
     [
@@ -88,6 +90,7 @@ export async function generateTailoredCV(
       throw new Error(`No hay tools disponibles para esta llamada, se intentó llamar: ${toolName}`);
     },
   );
+  validateNoFabricatedContactInfo(coverLetterContent);
 
   return createSavedCV(
     { jobDescriptionId, content, coverLetterContent },
