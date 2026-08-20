@@ -6,6 +6,7 @@ type SavedCVRow = {
   id: string;
   job_description_id: string;
   content: string;
+  cover_letter_content: string;
   created_at: string;
 };
 
@@ -14,6 +15,7 @@ function toDomain(row: SavedCVRow): SavedCV {
     id: row.id,
     jobDescriptionId: row.job_description_id,
     content: row.content,
+    coverLetterContent: row.cover_letter_content,
     createdAt: new Date(row.created_at),
   };
 }
@@ -23,6 +25,7 @@ function toRow(savedCV: SavedCV): SavedCVRow {
     id: savedCV.id,
     job_description_id: savedCV.jobDescriptionId,
     content: savedCV.content,
+    cover_letter_content: savedCV.coverLetterContent,
     created_at: savedCV.createdAt.toISOString(),
   };
 }

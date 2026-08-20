@@ -8,7 +8,7 @@ import { NotFoundError } from "../errors/not-found-error.js";
 // original, pero nunca puede introducir una métrica o dato que no estuviera
 // ya en el Bullet fuente — regla de honestidad no negociable del proyecto.
 export async function createSavedCV(
-  input: { jobDescriptionId: string; content: string },
+  input: { jobDescriptionId: string; content: string; coverLetterContent: string },
   repository: SavedCVRepository,
   jobDescriptionRepository: JobDescriptionRepository,
 ): Promise<SavedCV> {
@@ -20,6 +20,7 @@ export async function createSavedCV(
     id: randomUUID(),
     jobDescriptionId: input.jobDescriptionId,
     content: input.content,
+    coverLetterContent: input.coverLetterContent,
     createdAt: new Date(),
   };
 

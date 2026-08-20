@@ -22,12 +22,33 @@ describe("createSavedCV", () => {
     const jobDescription = await createTestJobDescription(jobDescriptionRepository);
 
     const savedCV = await createSavedCV(
-      { jobDescriptionId: jobDescription.id, content: "CV generado para Acme Corp" },
+      {
+        jobDescriptionId: jobDescription.id,
+        content: "CV generado para Acme Corp",
+        coverLetterContent: "Cover letter generada para Acme Corp",
+      },
       new InMemorySavedCVRepository(),
       jobDescriptionRepository,
     );
 
     expect(savedCV.content).toBe("CV generado para Acme Corp");
+  });
+
+  it("asigna el coverLetterContent dado al SavedCV creado", async () => {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createTestJobDescription(jobDescriptionRepository);
+
+    const savedCV = await createSavedCV(
+      {
+        jobDescriptionId: jobDescription.id,
+        content: "CV generado para Acme Corp",
+        coverLetterContent: "Cover letter generada para Acme Corp",
+      },
+      new InMemorySavedCVRepository(),
+      jobDescriptionRepository,
+    );
+
+    expect(savedCV.coverLetterContent).toBe("Cover letter generada para Acme Corp");
   });
 
   it("asigna un id único a cada SavedCV creado", async () => {
@@ -36,12 +57,20 @@ describe("createSavedCV", () => {
     const savedCVRepository = new InMemorySavedCVRepository();
 
     const first = await createSavedCV(
-      { jobDescriptionId: jobDescription.id, content: "CV generado para Acme Corp" },
+      {
+        jobDescriptionId: jobDescription.id,
+        content: "CV generado para Acme Corp",
+        coverLetterContent: "Cover letter generada para Acme Corp",
+      },
       savedCVRepository,
       jobDescriptionRepository,
     );
     const second = await createSavedCV(
-      { jobDescriptionId: jobDescription.id, content: "Otra variante del CV" },
+      {
+        jobDescriptionId: jobDescription.id,
+        content: "Otra variante del CV",
+        coverLetterContent: "Otra variante de la cover letter",
+      },
       savedCVRepository,
       jobDescriptionRepository,
     );
@@ -57,7 +86,11 @@ describe("createSavedCV", () => {
 
     const before = new Date();
     const savedCV = await createSavedCV(
-      { jobDescriptionId: jobDescription.id, content: "CV generado para Acme Corp" },
+      {
+        jobDescriptionId: jobDescription.id,
+        content: "CV generado para Acme Corp",
+        coverLetterContent: "Cover letter generada para Acme Corp",
+      },
       new InMemorySavedCVRepository(),
       jobDescriptionRepository,
     );
@@ -73,7 +106,11 @@ describe("createSavedCV", () => {
     const jobDescription = await createTestJobDescription(jobDescriptionRepository);
 
     const savedCV = await createSavedCV(
-      { jobDescriptionId: jobDescription.id, content: "CV generado para Acme Corp" },
+      {
+        jobDescriptionId: jobDescription.id,
+        content: "CV generado para Acme Corp",
+        coverLetterContent: "Cover letter generada para Acme Corp",
+      },
       new InMemorySavedCVRepository(),
       jobDescriptionRepository,
     );
@@ -87,7 +124,11 @@ describe("createSavedCV", () => {
 
     await expect(
       createSavedCV(
-        { jobDescriptionId: "no-existe", content: "CV generado para Acme Corp" },
+        {
+          jobDescriptionId: "no-existe",
+          content: "CV generado para Acme Corp",
+          coverLetterContent: "Cover letter generada para Acme Corp",
+        },
         savedCVRepository,
         jobDescriptionRepository,
       ),
@@ -100,7 +141,11 @@ describe("createSavedCV", () => {
     const savedCVRepository = new InMemorySavedCVRepository();
 
     const savedCV = await createSavedCV(
-      { jobDescriptionId: jobDescription.id, content: "CV generado para Acme Corp" },
+      {
+        jobDescriptionId: jobDescription.id,
+        content: "CV generado para Acme Corp",
+        coverLetterContent: "Cover letter generada para Acme Corp",
+      },
       savedCVRepository,
       jobDescriptionRepository,
     );
@@ -126,12 +171,20 @@ describe("listSavedCVs", () => {
     const savedCVRepository = new InMemorySavedCVRepository();
 
     const first = await createSavedCV(
-      { jobDescriptionId: jobDescription.id, content: "CV generado para Acme Corp" },
+      {
+        jobDescriptionId: jobDescription.id,
+        content: "CV generado para Acme Corp",
+        coverLetterContent: "Cover letter generada para Acme Corp",
+      },
       savedCVRepository,
       jobDescriptionRepository,
     );
     const second = await createSavedCV(
-      { jobDescriptionId: jobDescription.id, content: "Otra variante del CV" },
+      {
+        jobDescriptionId: jobDescription.id,
+        content: "Otra variante del CV",
+        coverLetterContent: "Otra variante de la cover letter",
+      },
       savedCVRepository,
       jobDescriptionRepository,
     );
@@ -149,12 +202,20 @@ describe("createSavedCV — sin chequeo de duplicados", () => {
     const savedCVRepository = new InMemorySavedCVRepository();
 
     const first = await createSavedCV(
-      { jobDescriptionId: jobDescription.id, content: "Primera variante del CV" },
+      {
+        jobDescriptionId: jobDescription.id,
+        content: "Primera variante del CV",
+        coverLetterContent: "Primera variante de la cover letter",
+      },
       savedCVRepository,
       jobDescriptionRepository,
     );
     const second = await createSavedCV(
-      { jobDescriptionId: jobDescription.id, content: "Segunda variante del CV" },
+      {
+        jobDescriptionId: jobDescription.id,
+        content: "Segunda variante del CV",
+        coverLetterContent: "Segunda variante de la cover letter",
+      },
       savedCVRepository,
       jobDescriptionRepository,
     );

@@ -20,6 +20,7 @@ describe("SavedCVRepositorySupabase (integración)", () => {
       id: randomUUID(),
       jobDescriptionId: jobDescription.id,
       content: "CV generado para Acme Corp",
+      coverLetterContent: "Cover letter generada para Acme Corp",
       createdAt: new Date(),
     });
 
