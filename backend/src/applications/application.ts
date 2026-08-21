@@ -1,5 +1,7 @@
 export type ApplicationStatus = "pendiente" | "enviada" | "entrevista" | "rechazada" | "oferta";
 
+export const APPLICATION_STATUSES: ApplicationStatus[] = ["pendiente", "enviada", "entrevista", "rechazada", "oferta"];
+
 export type Application = {
   id: string;
   jobDescriptionId: string;
