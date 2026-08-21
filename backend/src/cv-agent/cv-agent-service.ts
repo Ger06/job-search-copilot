@@ -4,6 +4,7 @@ import { findJobDescriptionById } from "../job-descriptions/job-description-serv
 import type { WorkExperience } from "../work-experiences/work-experience.js";
 import type { WorkExperienceRepository } from "../work-experiences/work-experience-repository.js";
 import { listWorkExperiences } from "../work-experiences/work-experience-service.js";
+import type { Bullet } from "../bullets/bullet.js";
 import type { BulletRepository } from "../bullets/bullet-repository.js";
 import type { SavedCV } from "../saved-cvs/saved-cv.js";
 import type { SavedCVRepository } from "../saved-cvs/saved-cv-repository.js";
@@ -14,6 +15,35 @@ import { NotFoundError } from "../errors/not-found-error.js";
 import { CV_AGENT_SYSTEM_PROMPT } from "./cv-agent-system-prompt.js";
 import { GET_RELEVANT_BULLETS_TOOL, createGetRelevantBulletsExecutor } from "./get-relevant-bullets-tool.js";
 import { validateNoFabricatedContactInfo } from "./validate-no-fabricated-contact-info.js";
+import { calculateFitScore } from "./calculate-fit-score.js";
+
+// Wrapper de solo-lectura sobre BulletRepository que registra los bullets
+// que la tool efectivamente devolvió durante la generación del CV — es lo
+// que se usa después para calcular el fitScore (mismo patrón ya validado
+// en los evals de cv-agent.integration.test.ts).
+class RecordingBulletRepository implements BulletRepository {
+  readonly fetchedBullets: Bullet[] = [];
+
+  constructor(private readonly inner: BulletRepository) {}
+
+  create(bullet: Bullet): Promise<Bullet> {
+    return this.inner.create(bullet);
+  }
+
+  findById(id: string): Promise<Bullet | undefined> {
+    return this.inner.findById(id);
+  }
+
+  list(): Promise<Bullet[]> {
+    return this.inner.list();
+  }
+
+  async findByWorkExperienceId(workExperienceId: string): Promise<Bullet[]> {
+    const bullets = await this.inner.findByWorkExperienceId(workExperienceId);
+    this.fetchedBullets.push(...bullets);
+    return bullets;
+  }
+}
 
 function formatWorkExperienceDates(workExperience: WorkExperience): string {
   const start = workExperience.startDate.toISOString().slice(0, 10);
@@ -62,13 +92,14 @@ export async function generateTailoredCV(
   },
   embeddingProvider: EmbeddingProvider,
   llmProvider: LLMProvider,
-): Promise<SavedCV> {
+): Promise<{ savedCV: SavedCV; fitScore: number | null }> {
   const jobDescription = await findJobDescriptionById(jobDescriptionId, repositories.jobDescriptionRepository);
   if (jobDescription === undefined) {
     throw new NotFoundError("JobDescription", jobDescriptionId);
   }
 
   const workExperiences = await listWorkExperiences(repositories.workExperienceRepository);
+  const recordingBulletRepository = new RecordingBulletRepository(repositories.bulletRepository);
 
   const content = await llmProvider.generate(
     [
@@ -76,7 +107,7 @@ export async function generateTailoredCV(
       { role: "user", content: buildCVUserPrompt(jobDescription, workExperiences) },
     ],
     [GET_RELEVANT_BULLETS_TOOL],
-    createGetRelevantBulletsExecutor(jobDescription.rawText, repositories.bulletRepository, embeddingProvider),
+    createGetRelevantBulletsExecutor(jobDescription.rawText, recordingBulletRepository, embeddingProvider),
   );
   validateNoFabricatedContactInfo(content);
 
@@ -92,9 +123,14 @@ export async function generateTailoredCV(
   );
   validateNoFabricatedContactInfo(coverLetterContent);
 
-  return createSavedCV(
+  const jobDescriptionEmbedding = await embeddingProvider.embed(jobDescription.rawText);
+  const fitScore = calculateFitScore(jobDescriptionEmbedding, recordingBulletRepository.fetchedBullets);
+
+  const savedCV = await createSavedCV(
     { jobDescriptionId, content, coverLetterContent },
     repositories.savedCVRepository,
     repositories.jobDescriptionRepository,
   );
+
+  return { savedCV, fitScore };
 }

@@ -21,6 +21,18 @@ function createFakeEmbeddingProvider(vector: number[] = [0.1, 0.2, 0.3]): Embedd
   };
 }
 
+function createFakeEmbeddingProviderFromMap(vectorsByText: Record<string, number[]>): EmbeddingProvider {
+  return {
+    async embed(text: string) {
+      const vector = vectorsByText[text];
+      if (vector === undefined) {
+        throw new Error(`No hay vector fake para el texto: ${text}`);
+      }
+      return vector;
+    },
+  };
+}
+
 type RecordedCall = { messages: LLMMessage[]; tools: LLMToolDefinition[] };
 
 function createFakeLLMProvider(
@@ -93,7 +105,7 @@ describe("generateTailoredCV", () => {
       return callIndex === 0 ? "CONTENIDO DEL CV" : "CONTENIDO DE LA COVER LETTER";
     });
 
-    const savedCV = await generateTailoredCV(
+    const result = await generateTailoredCV(
       fixture.jobDescription.id,
       {
         jobDescriptionRepository: fixture.jobDescriptionRepository,
@@ -105,8 +117,8 @@ describe("generateTailoredCV", () => {
       llmProvider,
     );
 
-    expect(savedCV.content).toBe("CONTENIDO DEL CV");
-    expect(savedCV.coverLetterContent).toBe("CONTENIDO DE LA COVER LETTER");
+    expect(result.savedCV.content).toBe("CONTENIDO DEL CV");
+    expect(result.savedCV.coverLetterContent).toBe("CONTENIDO DE LA COVER LETTER");
   });
 
   it("el executeTool de la primera llamada trae bullets reales de la work experience pedida", async () => {
@@ -128,7 +140,7 @@ describe("generateTailoredCV", () => {
       return "CONTENIDO DE LA COVER LETTER";
     });
 
-    const savedCV = await generateTailoredCV(
+    const result = await generateTailoredCV(
       fixture.jobDescription.id,
       {
         jobDescriptionRepository: fixture.jobDescriptionRepository,
@@ -140,7 +152,7 @@ describe("generateTailoredCV", () => {
       llmProvider,
     );
 
-    expect(JSON.parse(savedCV.content)).toEqual([bullet.text]);
+    expect(JSON.parse(result.savedCV.content)).toEqual([bullet.text]);
   });
 
   it("el prompt de la primera llamada menciona el id de cada work experience existente", async () => {
@@ -219,7 +231,7 @@ describe("generateTailoredCV", () => {
       return callIndex === 0 ? "CONTENIDO DEL CV" : "CONTENIDO DE LA COVER LETTER";
     });
 
-    const savedCV = await generateTailoredCV(
+    const result = await generateTailoredCV(
       fixture.jobDescription.id,
       {
         jobDescriptionRepository: fixture.jobDescriptionRepository,
@@ -231,6 +243,82 @@ describe("generateTailoredCV", () => {
       llmProvider,
     );
 
-    expect(await fixture.savedCVRepository.findById(savedCV.id)).toEqual(savedCV);
+    expect(await fixture.savedCVRepository.findById(result.savedCV.id)).toEqual(result.savedCV);
+  });
+
+  it("fitScore es el promedio de similitud coseno entre el embedding de la vacante y los bullets que la tool efectivamente trajo", async () => {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createJobDescription(
+      { company: "Acme Corp", role: "Backend Engineer", rawText: "vacante de backend" },
+      jobDescriptionRepository,
+    );
+    const workExperienceRepository = new InMemoryWorkExperienceRepository();
+    const workExperienceA = await createWorkExperience(
+      { company: "Beta Inc", role: "Software Engineer", startDate: new Date("2020-01-01"), order: 1 },
+      workExperienceRepository,
+    );
+    const workExperienceB = await createWorkExperience(
+      { company: "Gamma LLC", role: "Tech Lead", startDate: new Date("2022-01-01"), order: 2 },
+      workExperienceRepository,
+    );
+    const vectorsByText: Record<string, number[]> = {
+      "vacante de backend": [1, 0],
+      "Reduje el tiempo de build en 40%": [1, 0],
+      "Organicé el picnic de la oficina": [0, 1],
+    };
+    const embeddingProvider = createFakeEmbeddingProviderFromMap(vectorsByText);
+    const bulletRepository = new InMemoryBulletRepository();
+    await createBullet(
+      { text: "Reduje el tiempo de build en 40%", workExperienceId: workExperienceA.id },
+      bulletRepository,
+      workExperienceRepository,
+      embeddingProvider,
+    );
+    await createBullet(
+      { text: "Organicé el picnic de la oficina", workExperienceId: workExperienceB.id },
+      bulletRepository,
+      workExperienceRepository,
+      embeddingProvider,
+    );
+    const savedCVRepository = new InMemorySavedCVRepository();
+
+    const llmProvider = createFakeLLMProvider(async (_call, executeTool, callIndex) => {
+      if (callIndex === 0) {
+        await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: workExperienceA.id });
+        await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: workExperienceB.id });
+        return "CONTENIDO DEL CV";
+      }
+      return "CONTENIDO DE LA COVER LETTER";
+    });
+
+    const result = await generateTailoredCV(
+      jobDescription.id,
+      { jobDescriptionRepository, workExperienceRepository, bulletRepository, savedCVRepository },
+      embeddingProvider,
+      llmProvider,
+    );
+
+    expect(result.fitScore).toBeCloseTo(0.5);
+  });
+
+  it("fitScore es null si el LLMProvider nunca llamó a la tool", async () => {
+    const fixture = await setUpFixture();
+    const llmProvider = createFakeLLMProvider(async (_call, _executeTool, callIndex) => {
+      return callIndex === 0 ? "CONTENIDO DEL CV" : "CONTENIDO DE LA COVER LETTER";
+    });
+
+    const result = await generateTailoredCV(
+      fixture.jobDescription.id,
+      {
+        jobDescriptionRepository: fixture.jobDescriptionRepository,
+        workExperienceRepository: fixture.workExperienceRepository,
+        bulletRepository: fixture.bulletRepository,
+        savedCVRepository: fixture.savedCVRepository,
+      },
+      fixture.embeddingProvider,
+      llmProvider,
+    );
+
+    expect(result.fitScore).toBeNull();
   });
 });

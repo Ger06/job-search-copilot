@@ -123,7 +123,7 @@ describe("generateTailoredCV — evals con Groq real (integración)", () => {
       const savedCVRepository = new InMemorySavedCVRepository();
       const llmProvider = new GroqLLMProvider();
 
-      const savedCV = await generateTailoredCV(
+      const { savedCV } = await generateTailoredCV(
         jobDescription.id,
         { jobDescriptionRepository, workExperienceRepository, bulletRepository, savedCVRepository },
         embeddingProvider,

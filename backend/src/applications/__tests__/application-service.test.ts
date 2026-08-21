@@ -1,0 +1,485 @@
+import { describe, expect, it } from "vitest";
+import {
+  createApplication,
+  linkSavedCVToApplication,
+  listApplications,
+  listApplicationsAsCsv,
+  updateApplicationDetails,
+  updateApplicationStatus,
+} from "../application-service.js";
+import { InMemoryApplicationRepository } from "../in-memory-application-repository.js";
+import { createJobDescription } from "../../job-descriptions/job-description-service.js";
+import { InMemoryJobDescriptionRepository } from "../../job-descriptions/in-memory-job-description-repository.js";
+import { createSavedCV } from "../../saved-cvs/saved-cv-service.js";
+import { InMemorySavedCVRepository } from "../../saved-cvs/in-memory-saved-cv-repository.js";
+import { NotFoundError } from "../../errors/not-found-error.js";
+
+function createTestJobDescription(repository: InMemoryJobDescriptionRepository) {
+  return createJobDescription(
+    { company: "Acme Corp", role: "Backend Engineer", rawText: "Buscamos un Backend Engineer con experiencia en Node.js" },
+    repository,
+  );
+}
+
+describe("createApplication", () => {
+  it("crea una Application con el jobDescriptionId dado y status 'pendiente' por default", async () => {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createTestJobDescription(jobDescriptionRepository);
+
+    const application = await createApplication(
+      { jobDescriptionId: jobDescription.id },
+      new InMemoryApplicationRepository(),
+      jobDescriptionRepository,
+      new InMemorySavedCVRepository(),
+    );
+
+    expect(application.jobDescriptionId).toBe(jobDescription.id);
+    expect(application.status).toBe("pendiente");
+  });
+
+  it("savedCvId y fitScore empiezan null cuando no se pasa savedCvId", async () => {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createTestJobDescription(jobDescriptionRepository);
+
+    const application = await createApplication(
+      { jobDescriptionId: jobDescription.id },
+      new InMemoryApplicationRepository(),
+      jobDescriptionRepository,
+      new InMemorySavedCVRepository(),
+    );
+
+    expect(application.savedCvId).toBeNull();
+    expect(application.fitScore).toBeNull();
+  });
+
+  it("asigna un id único a cada Application creada", async () => {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createTestJobDescription(jobDescriptionRepository);
+    const applicationRepository = new InMemoryApplicationRepository();
+    const savedCVRepository = new InMemorySavedCVRepository();
+
+    const first = await createApplication(
+      { jobDescriptionId: jobDescription.id },
+      applicationRepository,
+      jobDescriptionRepository,
+      savedCVRepository,
+    );
+    const second = await createApplication(
+      { jobDescriptionId: jobDescription.id },
+      applicationRepository,
+      jobDescriptionRepository,
+      savedCVRepository,
+    );
+
+    expect(first.id).toBeDefined();
+    expect(second.id).toBeDefined();
+    expect(first.id).not.toBe(second.id);
+  });
+
+  it("asigna createdAt y updatedAt iguales entre sí al crear", async () => {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createTestJobDescription(jobDescriptionRepository);
+
+    const before = new Date();
+    const application = await createApplication(
+      { jobDescriptionId: jobDescription.id },
+      new InMemoryApplicationRepository(),
+      jobDescriptionRepository,
+      new InMemorySavedCVRepository(),
+    );
+    const after = new Date();
+
+    expect(application.createdAt).toBeInstanceOf(Date);
+    expect(application.updatedAt).toEqual(application.createdAt);
+    expect(application.createdAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
+    expect(application.createdAt.getTime()).toBeLessThanOrEqual(after.getTime());
+  });
+
+  it("lanza NotFoundError si el jobDescriptionId no existe", async () => {
+    await expect(
+      createApplication(
+        { jobDescriptionId: "no-existe" },
+        new InMemoryApplicationRepository(),
+        new InMemoryJobDescriptionRepository(),
+        new InMemorySavedCVRepository(),
+      ),
+    ).rejects.toThrow(new NotFoundError("JobDescription", "no-existe"));
+  });
+
+  it("persiste la Application en el repo", async () => {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createTestJobDescription(jobDescriptionRepository);
+    const applicationRepository = new InMemoryApplicationRepository();
+
+    const application = await createApplication(
+      { jobDescriptionId: jobDescription.id },
+      applicationRepository,
+      jobDescriptionRepository,
+      new InMemorySavedCVRepository(),
+    );
+
+    expect(await applicationRepository.findById(application.id)).toEqual(application);
+  });
+
+  it("si se pasa savedCvId de un SavedCV existente, la Application creada lo tiene asignado y fitScore sigue null", async () => {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createTestJobDescription(jobDescriptionRepository);
+    const savedCVRepository = new InMemorySavedCVRepository();
+    const savedCV = await createSavedCV(
+      { jobDescriptionId: jobDescription.id, content: "CV generado", coverLetterContent: "Cover letter generada" },
+      savedCVRepository,
+      jobDescriptionRepository,
+    );
+
+    const application = await createApplication(
+      { jobDescriptionId: jobDescription.id, savedCvId: savedCV.id },
+      new InMemoryApplicationRepository(),
+      jobDescriptionRepository,
+      savedCVRepository,
+    );
+
+    expect(application.savedCvId).toBe(savedCV.id);
+    expect(application.fitScore).toBeNull();
+  });
+
+  it("lanza NotFoundError si el savedCvId pasado no corresponde a ningún SavedCV existente", async () => {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createTestJobDescription(jobDescriptionRepository);
+
+    await expect(
+      createApplication(
+        { jobDescriptionId: jobDescription.id, savedCvId: "no-existe" },
+        new InMemoryApplicationRepository(),
+        jobDescriptionRepository,
+        new InMemorySavedCVRepository(),
+      ),
+    ).rejects.toThrow(new NotFoundError("SavedCV", "no-existe"));
+  });
+});
+
+describe("updateApplicationStatus", () => {
+  it("actualiza el status al valor dado", async () => {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createTestJobDescription(jobDescriptionRepository);
+    const applicationRepository = new InMemoryApplicationRepository();
+    const application = await createApplication(
+      { jobDescriptionId: jobDescription.id },
+      applicationRepository,
+      jobDescriptionRepository,
+      new InMemorySavedCVRepository(),
+    );
+
+    const updated = await updateApplicationStatus(application.id, "enviada", applicationRepository);
+
+    expect(updated.status).toBe("enviada");
+  });
+
+  it("actualiza updatedAt a un valor posterior al original", async () => {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createTestJobDescription(jobDescriptionRepository);
+    const applicationRepository = new InMemoryApplicationRepository();
+    const application = await createApplication(
+      { jobDescriptionId: jobDescription.id },
+      applicationRepository,
+      jobDescriptionRepository,
+      new InMemorySavedCVRepository(),
+    );
+    const originalUpdatedAt = application.updatedAt;
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const updated = await updateApplicationStatus(application.id, "enviada", applicationRepository);
+
+    expect(updated.updatedAt.getTime()).toBeGreaterThan(originalUpdatedAt.getTime());
+  });
+
+  it("no modifica ningún otro campo", async () => {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createTestJobDescription(jobDescriptionRepository);
+    const savedCVRepository = new InMemorySavedCVRepository();
+    const savedCV = await createSavedCV(
+      { jobDescriptionId: jobDescription.id, content: "CV generado", coverLetterContent: "Cover letter generada" },
+      savedCVRepository,
+      jobDescriptionRepository,
+    );
+    const applicationRepository = new InMemoryApplicationRepository();
+    const created = await createApplication(
+      { jobDescriptionId: jobDescription.id, savedCvId: savedCV.id },
+      applicationRepository,
+      jobDescriptionRepository,
+      savedCVRepository,
+    );
+    const seeded = await applicationRepository.update({
+      ...created,
+      recruiter: "Jane Doe",
+      portal: "linkedin",
+      salaryRequested: "USD 2500",
+      fitScore: 0.75,
+      notes: "Primer contacto",
+    });
+
+    const updated = await updateApplicationStatus(seeded.id, "entrevista", applicationRepository);
+
+    expect(updated.createdAt).toEqual(seeded.createdAt);
+    expect(updated.jobDescriptionId).toBe(seeded.jobDescriptionId);
+    expect(updated.savedCvId).toBe(seeded.savedCvId);
+    expect(updated.recruiter).toBe(seeded.recruiter);
+    expect(updated.portal).toBe(seeded.portal);
+    expect(updated.salaryRequested).toBe(seeded.salaryRequested);
+    expect(updated.fitScore).toBe(seeded.fitScore);
+    expect(updated.notes).toBe(seeded.notes);
+  });
+
+  it("lanza NotFoundError si la Application no existe", async () => {
+    await expect(updateApplicationStatus("no-existe", "enviada", new InMemoryApplicationRepository())).rejects.toThrow(
+      new NotFoundError("Application", "no-existe"),
+    );
+  });
+});
+
+describe("updateApplicationDetails", () => {
+  async function createSeededApplication(applicationRepository: InMemoryApplicationRepository) {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createTestJobDescription(jobDescriptionRepository);
+    const created = await createApplication(
+      { jobDescriptionId: jobDescription.id },
+      applicationRepository,
+      jobDescriptionRepository,
+      new InMemorySavedCVRepository(),
+    );
+    return applicationRepository.update({
+      ...created,
+      recruiter: "Jane Doe",
+      portal: "linkedin",
+      salaryRequested: "USD 2500",
+      notes: "Primer contacto",
+    });
+  }
+
+  it("actualiza solo el campo provisto, el resto de recruiter/portal/salaryRequested/notes queda igual", async () => {
+    const applicationRepository = new InMemoryApplicationRepository();
+    const seeded = await createSeededApplication(applicationRepository);
+
+    const updated = await updateApplicationDetails(seeded.id, { recruiter: "John Smith" }, applicationRepository);
+
+    expect(updated.recruiter).toBe("John Smith");
+    expect(updated.portal).toBe(seeded.portal);
+    expect(updated.salaryRequested).toBe(seeded.salaryRequested);
+    expect(updated.notes).toBe(seeded.notes);
+  });
+
+  it("actualiza varios campos a la vez cuando se proveen varios", async () => {
+    const applicationRepository = new InMemoryApplicationRepository();
+    const seeded = await createSeededApplication(applicationRepository);
+
+    const updated = await updateApplicationDetails(
+      seeded.id,
+      { portal: "indeed", salaryRequested: "USD 3000" },
+      applicationRepository,
+    );
+
+    expect(updated.portal).toBe("indeed");
+    expect(updated.salaryRequested).toBe("USD 3000");
+    expect(updated.recruiter).toBe(seeded.recruiter);
+    expect(updated.notes).toBe(seeded.notes);
+  });
+
+  it("un campo omitido del input no se toca", async () => {
+    const applicationRepository = new InMemoryApplicationRepository();
+    const seeded = await createSeededApplication(applicationRepository);
+
+    const updated = await updateApplicationDetails(seeded.id, { notes: "Segundo contacto" }, applicationRepository);
+
+    expect(updated.recruiter).toBe(seeded.recruiter);
+    expect(updated.portal).toBe(seeded.portal);
+    expect(updated.salaryRequested).toBe(seeded.salaryRequested);
+  });
+
+  it("un campo pasado explícitamente como null lo limpia", async () => {
+    const applicationRepository = new InMemoryApplicationRepository();
+    const seeded = await createSeededApplication(applicationRepository);
+    expect(seeded.recruiter).not.toBeNull();
+
+    const updated = await updateApplicationDetails(seeded.id, { recruiter: null }, applicationRepository);
+
+    expect(updated.recruiter).toBeNull();
+    expect(updated.portal).toBe(seeded.portal);
+  });
+
+  it("actualiza updatedAt", async () => {
+    const applicationRepository = new InMemoryApplicationRepository();
+    const seeded = await createSeededApplication(applicationRepository);
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const updated = await updateApplicationDetails(seeded.id, { notes: "Segundo contacto" }, applicationRepository);
+
+    expect(updated.updatedAt.getTime()).toBeGreaterThan(seeded.updatedAt.getTime());
+  });
+
+  it("no toca status, savedCvId, fitScore ni createdAt", async () => {
+    const applicationRepository = new InMemoryApplicationRepository();
+    const seeded = await createSeededApplication(applicationRepository);
+
+    const updated = await updateApplicationDetails(seeded.id, { notes: "Segundo contacto" }, applicationRepository);
+
+    expect(updated.status).toBe(seeded.status);
+    expect(updated.savedCvId).toBe(seeded.savedCvId);
+    expect(updated.fitScore).toBe(seeded.fitScore);
+    expect(updated.createdAt).toEqual(seeded.createdAt);
+  });
+
+  it("lanza NotFoundError si la Application no existe", async () => {
+    await expect(
+      updateApplicationDetails("no-existe", { recruiter: "John Smith" }, new InMemoryApplicationRepository()),
+    ).rejects.toThrow(new NotFoundError("Application", "no-existe"));
+  });
+});
+
+describe("linkSavedCVToApplication", () => {
+  async function createSeededApplication(applicationRepository: InMemoryApplicationRepository) {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createTestJobDescription(jobDescriptionRepository);
+    const created = await createApplication(
+      { jobDescriptionId: jobDescription.id },
+      applicationRepository,
+      jobDescriptionRepository,
+      new InMemorySavedCVRepository(),
+    );
+    return applicationRepository.update({
+      ...created,
+      status: "entrevista",
+      recruiter: "Jane Doe",
+      portal: "linkedin",
+      salaryRequested: "USD 2500",
+      notes: "Primer contacto",
+    });
+  }
+
+  it("actualiza savedCvId y fitScore juntos", async () => {
+    const applicationRepository = new InMemoryApplicationRepository();
+    const seeded = await createSeededApplication(applicationRepository);
+
+    const updated = await linkSavedCVToApplication(seeded.id, "saved-cv-id", 0.82, applicationRepository);
+
+    expect(updated.savedCvId).toBe("saved-cv-id");
+    expect(updated.fitScore).toBe(0.82);
+  });
+
+  it("actualiza updatedAt", async () => {
+    const applicationRepository = new InMemoryApplicationRepository();
+    const seeded = await createSeededApplication(applicationRepository);
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const updated = await linkSavedCVToApplication(seeded.id, "saved-cv-id", 0.82, applicationRepository);
+
+    expect(updated.updatedAt.getTime()).toBeGreaterThan(seeded.updatedAt.getTime());
+  });
+
+  it("no modifica status, recruiter, portal, salaryRequested, notes ni createdAt", async () => {
+    const applicationRepository = new InMemoryApplicationRepository();
+    const seeded = await createSeededApplication(applicationRepository);
+
+    const updated = await linkSavedCVToApplication(seeded.id, "saved-cv-id", 0.82, applicationRepository);
+
+    expect(updated.status).toBe(seeded.status);
+    expect(updated.recruiter).toBe(seeded.recruiter);
+    expect(updated.portal).toBe(seeded.portal);
+    expect(updated.salaryRequested).toBe(seeded.salaryRequested);
+    expect(updated.notes).toBe(seeded.notes);
+    expect(updated.createdAt).toEqual(seeded.createdAt);
+  });
+
+  it("lanza NotFoundError si la Application no existe", async () => {
+    await expect(
+      linkSavedCVToApplication("no-existe", "saved-cv-id", 0.82, new InMemoryApplicationRepository()),
+    ).rejects.toThrow(new NotFoundError("Application", "no-existe"));
+  });
+});
+
+describe("listApplications", () => {
+  it("devuelve todas las Applications guardadas", async () => {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createTestJobDescription(jobDescriptionRepository);
+    const applicationRepository = new InMemoryApplicationRepository();
+    const savedCVRepository = new InMemorySavedCVRepository();
+
+    const first = await createApplication(
+      { jobDescriptionId: jobDescription.id },
+      applicationRepository,
+      jobDescriptionRepository,
+      savedCVRepository,
+    );
+    const second = await createApplication(
+      { jobDescriptionId: jobDescription.id },
+      applicationRepository,
+      jobDescriptionRepository,
+      savedCVRepository,
+    );
+
+    expect(await listApplications(applicationRepository)).toEqual([first, second]);
+  });
+});
+
+describe("listApplicationsAsCsv", () => {
+  const CSV_HEADER = "id,company,role,status,recruiter,portal,salaryRequested,fitScore,notes,savedCvId,createdAt,updatedAt";
+
+  it("arma el header correcto", async () => {
+    const csv = await listApplicationsAsCsv(new InMemoryApplicationRepository(), new InMemoryJobDescriptionRepository());
+
+    expect(csv.split("\n")[0]).toBe(CSV_HEADER);
+  });
+
+  it("arma una fila con los datos de la Application más company/role de su JobDescription", async () => {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createTestJobDescription(jobDescriptionRepository);
+    const applicationRepository = new InMemoryApplicationRepository();
+    const application = await createApplication(
+      { jobDescriptionId: jobDescription.id },
+      applicationRepository,
+      jobDescriptionRepository,
+      new InMemorySavedCVRepository(),
+    );
+
+    const csv = await listApplicationsAsCsv(applicationRepository, jobDescriptionRepository);
+    const [, row] = csv.split("\n");
+
+    expect(row).toBe(
+      [
+        application.id,
+        "Acme Corp",
+        "Backend Engineer",
+        "pendiente",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        application.createdAt.toISOString(),
+        application.updatedAt.toISOString(),
+      ].join(","),
+    );
+  });
+
+  it("escapa correctamente un valor con coma", async () => {
+    const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createTestJobDescription(jobDescriptionRepository);
+    const applicationRepository = new InMemoryApplicationRepository();
+    const created = await createApplication(
+      { jobDescriptionId: jobDescription.id },
+      applicationRepository,
+      jobDescriptionRepository,
+      new InMemorySavedCVRepository(),
+    );
+    await applicationRepository.update({ ...created, notes: "Habló conmigo, muy interesado" });
+
+    const csv = await listApplicationsAsCsv(applicationRepository, jobDescriptionRepository);
+
+    expect(csv).toContain('"Habló conmigo, muy interesado"');
+  });
+
+  it("con cero Applications, devuelve solo la fila de header", async () => {
+    const csv = await listApplicationsAsCsv(new InMemoryApplicationRepository(), new InMemoryJobDescriptionRepository());
+
+    expect(csv).toBe(CSV_HEADER);
+  });
+});
