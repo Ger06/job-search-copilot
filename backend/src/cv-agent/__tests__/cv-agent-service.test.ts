@@ -10,6 +10,7 @@ import { InMemoryBulletRepository } from "../../bullets/in-memory-bullet-reposit
 import { InMemorySavedCVRepository } from "../../saved-cvs/in-memory-saved-cv-repository.js";
 import { NotFoundError } from "../../errors/not-found-error.js";
 import { FabricatedContentError } from "../../errors/fabricated-content-error.js";
+import { IncompleteCoverageError } from "../../errors/incomplete-coverage-error.js";
 import type { EmbeddingProvider } from "../../ports/embedding-provider.js";
 import type { LLMMessage, LLMProvider, LLMToolDefinition, LLMToolExecutor } from "../../ports/llm-provider.js";
 
@@ -101,8 +102,13 @@ describe("generateTailoredCV", () => {
 
   it("arma el SavedCV con el content y coverLetterContent de la primera y segunda llamada al LLMProvider", async () => {
     const fixture = await setUpFixture();
-    const llmProvider = createFakeLLMProvider(async (_call, _executeTool, callIndex) => {
-      return callIndex === 0 ? "CONTENIDO DEL CV" : "CONTENIDO DE LA COVER LETTER";
+    const llmProvider = createFakeLLMProvider(async (_call, executeTool, callIndex) => {
+      if (callIndex === 0) {
+        await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: fixture.workExperienceA.id });
+        await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: fixture.workExperienceB.id });
+        return "CONTENIDO DEL CV";
+      }
+      return "CONTENIDO DE LA COVER LETTER";
     });
 
     const result = await generateTailoredCV(
@@ -135,6 +141,7 @@ describe("generateTailoredCV", () => {
         const toolResult = await executeTool(GET_RELEVANT_BULLETS_TOOL.name, {
           work_experience_id: fixture.workExperienceA.id,
         });
+        await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: fixture.workExperienceB.id });
         return toolResult;
       }
       return "CONTENIDO DE LA COVER LETTER";
@@ -157,8 +164,13 @@ describe("generateTailoredCV", () => {
 
   it("el prompt de la primera llamada menciona el id de cada work experience existente", async () => {
     const fixture = await setUpFixture();
-    const llmProvider = createFakeLLMProvider(async (_call, _executeTool, callIndex) => {
-      return callIndex === 0 ? "CONTENIDO DEL CV" : "CONTENIDO DE LA COVER LETTER";
+    const llmProvider = createFakeLLMProvider(async (_call, executeTool, callIndex) => {
+      if (callIndex === 0) {
+        await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: fixture.workExperienceA.id });
+        await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: fixture.workExperienceB.id });
+        return "CONTENIDO DEL CV";
+      }
+      return "CONTENIDO DE LA COVER LETTER";
     });
 
     await generateTailoredCV(
@@ -180,8 +192,13 @@ describe("generateTailoredCV", () => {
 
   it("la segunda llamada no recibe tools y su prompt incluye el content generado en la primera", async () => {
     const fixture = await setUpFixture();
-    const llmProvider = createFakeLLMProvider(async (_call, _executeTool, callIndex) => {
-      return callIndex === 0 ? "CONTENIDO DEL CV" : "CONTENIDO DE LA COVER LETTER";
+    const llmProvider = createFakeLLMProvider(async (_call, executeTool, callIndex) => {
+      if (callIndex === 0) {
+        await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: fixture.workExperienceA.id });
+        await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: fixture.workExperienceB.id });
+        return "CONTENIDO DEL CV";
+      }
+      return "CONTENIDO DE LA COVER LETTER";
     });
 
     await generateTailoredCV(
@@ -204,8 +221,13 @@ describe("generateTailoredCV", () => {
 
   it("lanza FabricatedContentError y no persiste nada si el LLMProvider devuelve un content con un email inventado", async () => {
     const fixture = await setUpFixture();
-    const llmProvider = createFakeLLMProvider(async (_call, _executeTool, callIndex) => {
-      return callIndex === 0 ? "Contactame a juan.perez@email.com" : "CONTENIDO DE LA COVER LETTER";
+    const llmProvider = createFakeLLMProvider(async (_call, executeTool, callIndex) => {
+      if (callIndex === 0) {
+        await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: fixture.workExperienceA.id });
+        await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: fixture.workExperienceB.id });
+        return "Contactame a juan.perez@email.com";
+      }
+      return "CONTENIDO DE LA COVER LETTER";
     });
 
     await expect(
@@ -225,10 +247,67 @@ describe("generateTailoredCV", () => {
     expect(await fixture.savedCVRepository.list()).toEqual([]);
   });
 
+  it("lanza IncompleteCoverageError y no persiste nada si el LLMProvider solo cubre algunas work experience", async () => {
+    const fixture = await setUpFixture();
+    const llmProvider = createFakeLLMProvider(async (_call, executeTool, callIndex) => {
+      if (callIndex === 0) {
+        await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: fixture.workExperienceA.id });
+        return "CONTENIDO DEL CV";
+      }
+      return "CONTENIDO DE LA COVER LETTER";
+    });
+
+    await expect(
+      generateTailoredCV(
+        fixture.jobDescription.id,
+        {
+          jobDescriptionRepository: fixture.jobDescriptionRepository,
+          workExperienceRepository: fixture.workExperienceRepository,
+          bulletRepository: fixture.bulletRepository,
+          savedCVRepository: fixture.savedCVRepository,
+        },
+        fixture.embeddingProvider,
+        llmProvider,
+      ),
+    ).rejects.toThrow(IncompleteCoverageError);
+
+    expect(await fixture.savedCVRepository.list()).toEqual([]);
+  });
+
+  it("chequea la cobertura antes que la honestidad: si ambas fallan, lanza IncompleteCoverageError", async () => {
+    const fixture = await setUpFixture();
+    const llmProvider = createFakeLLMProvider(async (_call, executeTool, callIndex) => {
+      if (callIndex === 0) {
+        await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: fixture.workExperienceA.id });
+        return "Contactame a juan.perez@email.com";
+      }
+      return "CONTENIDO DE LA COVER LETTER";
+    });
+
+    await expect(
+      generateTailoredCV(
+        fixture.jobDescription.id,
+        {
+          jobDescriptionRepository: fixture.jobDescriptionRepository,
+          workExperienceRepository: fixture.workExperienceRepository,
+          bulletRepository: fixture.bulletRepository,
+          savedCVRepository: fixture.savedCVRepository,
+        },
+        fixture.embeddingProvider,
+        llmProvider,
+      ),
+    ).rejects.toThrow(IncompleteCoverageError);
+  });
+
   it("persiste el SavedCV en el repo", async () => {
     const fixture = await setUpFixture();
-    const llmProvider = createFakeLLMProvider(async (_call, _executeTool, callIndex) => {
-      return callIndex === 0 ? "CONTENIDO DEL CV" : "CONTENIDO DE LA COVER LETTER";
+    const llmProvider = createFakeLLMProvider(async (_call, executeTool, callIndex) => {
+      if (callIndex === 0) {
+        await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: fixture.workExperienceA.id });
+        await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: fixture.workExperienceB.id });
+        return "CONTENIDO DEL CV";
+      }
+      return "CONTENIDO DE LA COVER LETTER";
     });
 
     const result = await generateTailoredCV(
@@ -301,10 +380,15 @@ describe("generateTailoredCV", () => {
     expect(result.fitScore).toBeCloseTo(0.5);
   });
 
-  it("fitScore es null si el LLMProvider nunca llamó a la tool", async () => {
+  it("fitScore es null si las work experience cubiertas no tienen ningún bullet cargado", async () => {
     const fixture = await setUpFixture();
-    const llmProvider = createFakeLLMProvider(async (_call, _executeTool, callIndex) => {
-      return callIndex === 0 ? "CONTENIDO DEL CV" : "CONTENIDO DE LA COVER LETTER";
+    const llmProvider = createFakeLLMProvider(async (_call, executeTool, callIndex) => {
+      if (callIndex === 0) {
+        await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: fixture.workExperienceA.id });
+        await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: fixture.workExperienceB.id });
+        return "CONTENIDO DEL CV";
+      }
+      return "CONTENIDO DE LA COVER LETTER";
     });
 
     const result = await generateTailoredCV(

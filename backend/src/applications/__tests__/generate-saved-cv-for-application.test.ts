@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateSavedCVForApplication } from "../generate-saved-cv-for-application.js";
+import { GET_RELEVANT_BULLETS_TOOL } from "../../cv-agent/get-relevant-bullets-tool.js";
 import { createApplication } from "../application-service.js";
 import { InMemoryApplicationRepository } from "../in-memory-application-repository.js";
 import { createJobDescription } from "../../job-descriptions/job-description-service.js";
@@ -20,10 +21,15 @@ function createFakeEmbeddingProvider(vector: number[] = [0.1, 0.2, 0.3]): Embedd
   };
 }
 
-function createFakeLLMProvider(): LLMProvider {
+function createFakeLLMProvider(workExperienceIdsToCover: string[]): LLMProvider {
   let callIndex = 0;
   return {
-    async generate() {
+    async generate(_messages, _tools, executeTool) {
+      if (callIndex === 0) {
+        for (const workExperienceId of workExperienceIdsToCover) {
+          await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: workExperienceId });
+        }
+      }
       const content = callIndex === 0 ? "CONTENIDO DEL CV" : "CONTENIDO DE LA COVER LETTER";
       callIndex += 1;
       return content;
@@ -38,7 +44,7 @@ async function setUpFixture() {
     jobDescriptionRepository,
   );
   const workExperienceRepository = new InMemoryWorkExperienceRepository();
-  await createWorkExperience(
+  const workExperience = await createWorkExperience(
     { company: "Beta Inc", role: "Software Engineer", startDate: new Date("2020-01-01"), order: 1 },
     workExperienceRepository,
   );
@@ -57,6 +63,7 @@ async function setUpFixture() {
     jobDescriptionRepository,
     jobDescription,
     workExperienceRepository,
+    workExperience,
     bulletRepository,
     savedCVRepository,
     applicationRepository,
@@ -80,7 +87,7 @@ describe("generateSavedCVForApplication", () => {
           savedCVRepository: fixture.savedCVRepository,
         },
         fixture.embeddingProvider,
-        createFakeLLMProvider(),
+        createFakeLLMProvider([fixture.workExperience.id]),
       ),
     ).rejects.toThrow(new NotFoundError("Application", "no-existe"));
   });
@@ -98,7 +105,7 @@ describe("generateSavedCVForApplication", () => {
         savedCVRepository: fixture.savedCVRepository,
       },
       fixture.embeddingProvider,
-      createFakeLLMProvider(),
+      createFakeLLMProvider([fixture.workExperience.id]),
     );
 
     expect(updated.savedCvId).not.toBeNull();
@@ -120,11 +127,12 @@ describe("generateSavedCVForApplication", () => {
         savedCVRepository: fixture.savedCVRepository,
       },
       fixture.embeddingProvider,
-      createFakeLLMProvider(),
+      createFakeLLMProvider([fixture.workExperience.id]),
     );
 
-    // La tool nunca se llamó (el LLMProvider fake no la invoca), así que
-    // fitScore queda null — mismo comportamiento ya probado en generateTailoredCV.
+    // La work experience se cubrió (la tool se llamó), pero no tiene
+    // ningún bullet cargado — fitScore queda null, mismo comportamiento
+    // ya probado en generateTailoredCV.
     expect(updated.fitScore).toBeNull();
     expect(await fixture.applicationRepository.findById(fixture.application.id)).toEqual(updated);
   });

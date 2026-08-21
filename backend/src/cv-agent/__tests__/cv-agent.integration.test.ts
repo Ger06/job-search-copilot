@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateTailoredCV } from "../cv-agent-service.js";
+import { GET_RELEVANT_BULLETS_TOOL } from "../get-relevant-bullets-tool.js";
 import { createJobDescription } from "../../job-descriptions/job-description-service.js";
 import { InMemoryJobDescriptionRepository } from "../../job-descriptions/in-memory-job-description-repository.js";
 import { createWorkExperience } from "../../work-experiences/work-experience-service.js";
@@ -23,10 +24,15 @@ function createFakeEmbeddingProvider(vector: number[] = [0.1, 0.2, 0.3]): Embedd
   };
 }
 
-function createFakeLLMProviderReturning(firstCallContent: string): LLMProvider {
+function createFakeLLMProviderReturning(firstCallContent: string, workExperienceIdsToCover: string[]): LLMProvider {
   let callIndex = 0;
   return {
-    async generate() {
+    async generate(_messages, _tools, executeTool) {
+      if (callIndex === 0) {
+        for (const workExperienceId of workExperienceIdsToCover) {
+          await executeTool(GET_RELEVANT_BULLETS_TOOL.name, { work_experience_id: workExperienceId });
+        }
+      }
       const content = callIndex === 0 ? firstCallContent : "CONTENIDO DE LA COVER LETTER";
       callIndex += 1;
       return content;
@@ -173,14 +179,14 @@ describe("generateTailoredCV — guardrail anti-identidad-inventada", () => {
       jobDescriptionRepository,
     );
     const workExperienceRepository = new InMemoryWorkExperienceRepository();
-    await createWorkExperience(
+    const workExperience = await createWorkExperience(
       { company: "Beta Inc", role: "Backend Engineer", startDate: new Date("2020-03-01"), order: 1 },
       workExperienceRepository,
     );
     const bulletRepository = new InMemoryBulletRepository();
     const savedCVRepository = new InMemorySavedCVRepository();
     const embeddingProvider = createFakeEmbeddingProvider();
-    const llmProvider = createFakeLLMProviderReturning("Contactame a juan.perez@email.com");
+    const llmProvider = createFakeLLMProviderReturning("Contactame a juan.perez@email.com", [workExperience.id]);
 
     await expect(
       generateTailoredCV(

@@ -15,14 +15,20 @@ import { NotFoundError } from "../errors/not-found-error.js";
 import { CV_AGENT_SYSTEM_PROMPT } from "./cv-agent-system-prompt.js";
 import { GET_RELEVANT_BULLETS_TOOL, createGetRelevantBulletsExecutor } from "./get-relevant-bullets-tool.js";
 import { validateNoFabricatedContactInfo } from "./validate-no-fabricated-contact-info.js";
+import { validateAllWorkExperiencesCovered } from "./validate-all-work-experiences-covered.js";
 import { calculateFitScore } from "./calculate-fit-score.js";
 
-// Wrapper de solo-lectura sobre BulletRepository que registra los bullets
-// que la tool efectivamente devolvió durante la generación del CV — es lo
-// que se usa después para calcular el fitScore (mismo patrón ya validado
-// en los evals de cv-agent.integration.test.ts).
+// Wrapper de solo-lectura sobre BulletRepository que registra, para cada
+// llamada real de la tool: (a) los bullets que efectivamente devolvió —
+// usado para calcular el fitScore — y (b) el id de la work experience
+// consultada, haya devuelto bullets o no — usado para el guardrail de
+// cobertura. Son dos preguntas distintas: una work experience real sin
+// bullets todavía puede estar bien cubierta (la tool se llamó) aunque no
+// aporte nada a fetchedBullets. Mismo patrón ya validado en los evals de
+// cv-agent.integration.test.ts.
 class RecordingBulletRepository implements BulletRepository {
   readonly fetchedBullets: Bullet[] = [];
+  readonly queriedWorkExperienceIds: string[] = [];
 
   constructor(private readonly inner: BulletRepository) {}
 
@@ -40,6 +46,7 @@ class RecordingBulletRepository implements BulletRepository {
 
   async findByWorkExperienceId(workExperienceId: string): Promise<Bullet[]> {
     const bullets = await this.inner.findByWorkExperienceId(workExperienceId);
+    this.queriedWorkExperienceIds.push(workExperienceId);
     this.fetchedBullets.push(...bullets);
     return bullets;
   }
@@ -108,6 +115,10 @@ export async function generateTailoredCV(
     ],
     [GET_RELEVANT_BULLETS_TOOL],
     createGetRelevantBulletsExecutor(jobDescription.rawText, recordingBulletRepository, embeddingProvider),
+  );
+  validateAllWorkExperiencesCovered(
+    workExperiences.map((workExperience) => workExperience.id),
+    recordingBulletRepository.queriedWorkExperienceIds,
   );
   validateNoFabricatedContactInfo(content);
 
