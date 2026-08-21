@@ -6,12 +6,15 @@ import type { Bullet } from "../bullets/bullet.js";
 import type { BulletRepository } from "../bullets/bullet-repository.js";
 import { createBullet } from "../bullets/bullet-service.js";
 import type { EmbeddingProvider } from "../ports/embedding-provider.js";
+import { validateNoDuplicateWorkExperiences } from "./validate-no-duplicate-work-experiences.js";
 
 export async function confirmParsedCV(
   draft: CVParseResult,
   repositories: { workExperienceRepository: WorkExperienceRepository; bulletRepository: BulletRepository },
   embeddingProvider: EmbeddingProvider,
 ): Promise<{ workExperiences: WorkExperience[]; bullets: Bullet[] }> {
+  await validateNoDuplicateWorkExperiences(draft, repositories.workExperienceRepository);
+
   const workExperiences: WorkExperience[] = [];
   const bullets: Bullet[] = [];
 

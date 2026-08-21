@@ -37,7 +37,7 @@ export function ReviewPanel({
   const canConfirm = isDraftValid(draft) && !isLoading;
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl">Revisar borrador</h1>
         <Button size="lg" disabled={!canConfirm} onClick={onConfirm}>

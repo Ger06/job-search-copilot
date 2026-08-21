@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { confirmParsedCV } from "../confirm-parsed-cv.js";
 import { InMemoryWorkExperienceRepository } from "../../work-experiences/in-memory-work-experience-repository.js";
 import { InMemoryBulletRepository } from "../../bullets/in-memory-bullet-repository.js";
+import { createWorkExperience } from "../../work-experiences/work-experience-service.js";
 import type { CVParseResult } from "../cv-parse-result.js";
 import type { EmbeddingProvider } from "../../ports/embedding-provider.js";
 
@@ -120,5 +121,20 @@ describe("confirmParsedCV", () => {
     );
 
     expect(result).toEqual({ workExperiences: [], bullets: [] });
+  });
+
+  it("lanza DuplicateError y no crea nada si el borrador incluye una WorkExperience ya existente", async () => {
+    const workExperienceRepository = new InMemoryWorkExperienceRepository();
+    const bulletRepository = new InMemoryBulletRepository();
+    await createWorkExperience(
+      { company: "Acme Corp", role: "Backend Engineer", startDate: new Date("2020-01-01"), order: 1 },
+      workExperienceRepository,
+    );
+
+    await expect(
+      confirmParsedCV(DRAFT, { workExperienceRepository, bulletRepository }, createFakeEmbeddingProvider()),
+    ).rejects.toThrow("ya existe");
+    expect(await workExperienceRepository.list()).toHaveLength(1);
+    expect(await bulletRepository.list()).toHaveLength(0);
   });
 });

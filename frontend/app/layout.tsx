@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans, Newsreader } from "next/font/google";
+import { SiteNav } from "@/components/site-nav";
 import "./globals.css";
 
 const newsreader = Newsreader({
@@ -21,7 +22,7 @@ const plexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "Job Search Copilot",
-  description: "Importá tu CV pegando el texto y revisá el borrador antes de guardarlo.",
+  description: "Armá tu bullet bank, seguí tus postulaciones y generá CVs a medida para cada vacante.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -30,7 +31,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="es"
       className={`${newsreader.variable} ${plexSans.variable} ${plexMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <SiteNav />
+        {children}
+      </body>
     </html>
   );
 }

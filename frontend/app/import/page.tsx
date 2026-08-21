@@ -2,7 +2,7 @@
 
 import { CVImportFlow } from "@/components/cv-import/cv-import-flow";
 
-export default function Home() {
+export default function ImportPage() {
   return (
     <main className="flex flex-1 flex-col px-6 py-12">
       <CVImportFlow />

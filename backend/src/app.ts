@@ -9,6 +9,7 @@ import { createJobDescriptionRouter } from "./job-descriptions/job-description-r
 import type { ApplicationRepository } from "./applications/application-repository.js";
 import { createApplicationRouter } from "./applications/application-router.js";
 import type { SavedCVRepository } from "./saved-cvs/saved-cv-repository.js";
+import { createSavedCVRouter } from "./saved-cvs/saved-cv-router.js";
 import { createCvImportRouter } from "./cv-import/cv-import-router.js";
 import type { EmbeddingProvider } from "./ports/embedding-provider.js";
 import type { LLMProvider } from "./ports/llm-provider.js";
@@ -54,6 +55,7 @@ export function createApp(deps: AppDependencies): Express {
       llmProvider: deps.llmProvider,
     }),
   );
+  app.use(createSavedCVRouter({ savedCVRepository: deps.savedCVRepository }));
   app.use(
     createCvImportRouter({
       workExperienceRepository: deps.workExperienceRepository,

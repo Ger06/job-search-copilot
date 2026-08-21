@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../../app.js";
 import { createTestAppDependencies } from "../../__tests__/test-app-dependencies.js";
+import { createWorkExperience } from "../../work-experiences/work-experience-service.js";
 import type { CVParseResult } from "../cv-parse-result.js";
 import type { LLMProvider } from "../../ports/llm-provider.js";
 
@@ -147,5 +148,19 @@ describe("POST /cv-import/confirm", () => {
     const response = await request(app).post("/cv-import/confirm").send({ workExperiences: "no-es-un-array" });
 
     expect(response.status).toBe(400);
+  });
+
+  it("devuelve 409 si el borrador incluye una WorkExperience que ya existe (mismo company, role y startDate)", async () => {
+    const { app, deps } = setUpApp(createFakeStructuredLLMProvider(""));
+    await createWorkExperience(
+      { company: "Acme Corp", role: "Backend Engineer", startDate: new Date("2020-01-01"), order: 1 },
+      deps.workExperienceRepository,
+    );
+
+    const response = await request(app).post("/cv-import/confirm").send(VALID_DRAFT);
+
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBeDefined();
+    expect(await deps.workExperienceRepository.list()).toHaveLength(1);
   });
 });
