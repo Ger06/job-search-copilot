@@ -1,9 +1,14 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../../app.js";
 import { createTestAppDependencies } from "../../__tests__/test-app-dependencies.js";
 import type { CVParseResult } from "../cv-parse-result.js";
 import type { LLMProvider } from "../../ports/llm-provider.js";
+
+const fixturesDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "__fixtures__");
+const fixturePath = (name: string) => path.join(fixturesDir, name);
 
 const VALID_DRAFT: CVParseResult = {
   workExperiences: [
@@ -70,6 +75,57 @@ describe("POST /cv-import/parse", () => {
 
     expect(response.status).toBe(422);
     expect(response.body.error).toBeDefined();
+  });
+});
+
+describe("POST /cv-import/extract-text", () => {
+  function setUpExtractApp() {
+    return createApp(createTestAppDependencies());
+  }
+
+  it("sube un PDF real y devuelve 200 con el texto extraído", async () => {
+    const app = setUpExtractApp();
+
+    const response = await request(app).post("/cv-import/extract-text").attach("file", fixturePath("sample-cv.pdf"));
+
+    expect(response.status).toBe(200);
+    expect(response.body.text).toContain("Beta Inc - Backend Engineer - 2020 a 2022");
+  });
+
+  it("devuelve 400 si no se adjunta ningún archivo", async () => {
+    const app = setUpExtractApp();
+
+    const response = await request(app).post("/cv-import/extract-text");
+
+    expect(response.status).toBe(400);
+  });
+
+  it("devuelve 400 si el archivo tiene una extensión no soportada", async () => {
+    const app = setUpExtractApp();
+
+    const response = await request(app)
+      .post("/cv-import/extract-text")
+      .attach("file", Buffer.from("hola"), "cv.txt");
+
+    expect(response.status).toBe(400);
+  });
+
+  it("devuelve 422 si no se puede extraer texto útil del archivo (FileExtractionError)", async () => {
+    const app = setUpExtractApp();
+
+    const response = await request(app).post("/cv-import/extract-text").attach("file", fixturePath("empty.pdf"));
+
+    expect(response.status).toBe(422);
+    expect(response.body.error).toBeDefined();
+  });
+
+  it("devuelve 400 si el archivo supera el límite de tamaño", async () => {
+    const app = setUpExtractApp();
+    const oversized = Buffer.alloc(6 * 1024 * 1024, "a");
+
+    const response = await request(app).post("/cv-import/extract-text").attach("file", oversized, "big.pdf");
+
+    expect(response.status).toBe(400);
   });
 });
 

@@ -1,4 +1,5 @@
 import express, { type Express } from "express";
+import cors from "cors";
 import type { WorkExperienceRepository } from "./work-experiences/work-experience-repository.js";
 import { createWorkExperienceRouter } from "./work-experiences/work-experience-router.js";
 import type { BulletRepository } from "./bullets/bullet-repository.js";
@@ -23,8 +24,14 @@ export type AppDependencies = {
   llmProvider: LLMProvider;
 };
 
+// Puerto real del frontend en dev (`next dev`, confirmado en el log de
+// arranque) — único origen habilitado por ahora, no hay frontend
+// desplegado en ningún otro lado todavía.
+const FRONTEND_ORIGIN = "http://localhost:3000";
+
 export function createApp(deps: AppDependencies): Express {
   const app = express();
+  app.use(cors({ origin: FRONTEND_ORIGIN }));
   app.use(express.json());
 
   app.use(createWorkExperienceRouter({ workExperienceRepository: deps.workExperienceRepository }));
