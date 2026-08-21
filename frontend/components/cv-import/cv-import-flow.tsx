@@ -47,8 +47,16 @@ export function CVImportFlow() {
     }
   }
 
+  function handleReset() {
+    setStage("paste");
+    setRawText("");
+    setDraft(null);
+    setConfirmResult(null);
+    setError(null);
+  }
+
   if (stage === "confirmed" && confirmResult) {
-    return <ConfirmationPanel result={confirmResult} />;
+    return <ConfirmationPanel result={confirmResult} onReset={handleReset} />;
   }
 
   if (stage === "review" && draft) {
