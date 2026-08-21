@@ -1,6 +1,6 @@
 import type Groq from "groq-sdk";
 import { groq } from "../groq-client.js";
-import type { LLMMessage, LLMProvider, LLMToolDefinition, LLMToolExecutor } from "./llm-provider.js";
+import type { LLMJsonSchema, LLMMessage, LLMProvider, LLMToolDefinition, LLMToolExecutor } from "./llm-provider.js";
 
 const MODEL_NAME = "openai/gpt-oss-120b";
 const MAX_TOOL_CALL_ITERATIONS = 10;
@@ -58,5 +58,23 @@ export class GroqLLMProvider implements LLMProvider {
     }
 
     throw new Error(`Se alcanzó el máximo de ${MAX_TOOL_CALL_ITERATIONS} iteraciones de tool calling sin respuesta final`);
+  }
+
+  async generateStructuredOutput(messages: LLMMessage[], jsonSchema: LLMJsonSchema): Promise<string> {
+    const response = await groq.chat.completions.create({
+      model: MODEL_NAME,
+      messages: messages.map((message) => ({ role: message.role, content: message.content })),
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: jsonSchema.name, strict: true, schema: jsonSchema.schema },
+      },
+    });
+
+    const message = response.choices[0]?.message;
+    if (message?.content === null || message?.content === undefined) {
+      throw new Error("Groq no devolvió contenido para el structured output");
+    }
+
+    return message.content;
   }
 }

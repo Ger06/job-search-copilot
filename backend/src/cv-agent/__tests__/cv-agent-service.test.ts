@@ -48,6 +48,9 @@ function createFakeLLMProvider(
       calls.push(call);
       return behavior(call, executeTool, callIndex);
     },
+    async generateStructuredOutput() {
+      throw new Error("no debería llamarse a generateStructuredOutput en este test");
+    },
   };
 }
 

@@ -37,6 +37,9 @@ function createFakeLLMProviderReturning(firstCallContent: string, workExperience
       callIndex += 1;
       return content;
     },
+    async generateStructuredOutput() {
+      throw new Error("no debería llamarse a generateStructuredOutput en este test");
+    },
   };
 }
 

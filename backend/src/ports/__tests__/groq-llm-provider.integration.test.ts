@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GroqLLMProvider } from "../groq-llm-provider.js";
-import type { LLMToolDefinition } from "../llm-provider.js";
+import type { LLMJsonSchema, LLMToolDefinition } from "../llm-provider.js";
 
 describe("GroqLLMProvider (integración)", () => {
   it("ejecuta una tool y devuelve una respuesta final que incorpora su resultado", async () => {
@@ -31,5 +31,34 @@ describe("GroqLLMProvider (integración)", () => {
     );
 
     expect(result).toContain("2026");
+  });
+
+  it("devuelve JSON que cumple el schema pedido con generateStructuredOutput", async () => {
+    const provider = new GroqLLMProvider();
+
+    const personSchema: LLMJsonSchema = {
+      name: "person",
+      schema: {
+        type: "object",
+        properties: {
+          nombre: { type: "string" },
+          edad: { type: "number" },
+        },
+        required: ["nombre", "edad"],
+        additionalProperties: false,
+      },
+    };
+
+    const result = await provider.generateStructuredOutput(
+      [
+        { role: "system", content: "Extraé los datos pedidos del texto en el formato JSON indicado." },
+        { role: "user", content: "María tiene 29 años." },
+      ],
+      personSchema,
+    );
+
+    const parsed = JSON.parse(result) as { nombre: string; edad: number };
+    expect(parsed.nombre).toBe("María");
+    expect(parsed.edad).toBe(29);
   });
 });

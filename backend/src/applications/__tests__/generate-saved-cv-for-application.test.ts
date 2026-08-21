@@ -34,6 +34,9 @@ function createFakeLLMProvider(workExperienceIdsToCover: string[]): LLMProvider 
       callIndex += 1;
       return content;
     },
+    async generateStructuredOutput() {
+      throw new Error("no debería llamarse a generateStructuredOutput en este test");
+    },
   };
 }
 
