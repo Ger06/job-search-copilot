@@ -17,7 +17,7 @@ export function SiteNav() {
   return (
     <header className="border-b border-border bg-card">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-        <span className="font-heading text-lg">Job Search Copilot</span>
+        <span className="font-heading text-lg">Job Search Copilot Job Search Copilot, Why Don&apos;t You Get A Job?</span>
         <nav className="flex items-center gap-6 text-sm font-medium">
           {NAV_LINKS.map((link) => {
             const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);

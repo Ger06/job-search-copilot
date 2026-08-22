@@ -22,7 +22,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Job Search Copilot",
+  title: "Job Search Copilot, Why Don't You Get A Job?",
   description: "Armá tu bullet bank, seguí tus postulaciones y generá CVs a medida para cada vacante.",
 };
 
