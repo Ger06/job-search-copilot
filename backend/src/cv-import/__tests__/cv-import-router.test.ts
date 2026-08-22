@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../../app.js";
-import { createTestAppDependencies } from "../../__tests__/test-app-dependencies.js";
+import { createTestAppDependencies, sessionRequest, TEST_SESSION_ID, OTHER_TEST_SESSION_ID } from "../../__tests__/test-app-dependencies.js";
 import { createWorkExperience } from "../../work-experiences/work-experience-service.js";
 import type { CVParseResult } from "../cv-parse-result.js";
 import type { LLMProvider } from "../../ports/llm-provider.js";
@@ -43,17 +43,17 @@ describe("POST /cv-import/parse", () => {
   it("devuelve 200 con el borrador parseado, sin persistir nada", async () => {
     const { app, deps } = setUpApp(createFakeStructuredLLMProvider(JSON.stringify(VALID_DRAFT)));
 
-    const response = await request(app).post("/cv-import/parse").send({ rawText: "un currículum de prueba" });
+    const response = await sessionRequest(app).post("/cv-import/parse").send({ rawText: "un currículum de prueba" });
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual(VALID_DRAFT);
-    expect(await deps.workExperienceRepository.list()).toHaveLength(0);
+    expect(await deps.workExperienceRepository.list(TEST_SESSION_ID)).toHaveLength(0);
   });
 
   it("devuelve 400 si falta rawText", async () => {
     const { app } = setUpApp(createFakeStructuredLLMProvider(JSON.stringify(VALID_DRAFT)));
 
-    const response = await request(app).post("/cv-import/parse").send({});
+    const response = await sessionRequest(app).post("/cv-import/parse").send({});
 
     expect(response.status).toBe(400);
   });
@@ -72,10 +72,18 @@ describe("POST /cv-import/parse", () => {
     };
     const { app } = setUpApp(createFakeStructuredLLMProvider(JSON.stringify(invalidDraft)));
 
-    const response = await request(app).post("/cv-import/parse").send({ rawText: "un currículum de prueba" });
+    const response = await sessionRequest(app).post("/cv-import/parse").send({ rawText: "un currículum de prueba" });
 
     expect(response.status).toBe(422);
     expect(response.body.error).toBeDefined();
+  });
+
+  it("devuelve 400 si falta el header X-Session-Id", async () => {
+    const { app } = setUpApp(createFakeStructuredLLMProvider(JSON.stringify(VALID_DRAFT)));
+
+    const response = await request(app).post("/cv-import/parse").send({ rawText: "un currículum de prueba" });
+
+    expect(response.status).toBe(400);
   });
 });
 
@@ -87,7 +95,7 @@ describe("POST /cv-import/extract-text", () => {
   it("sube un PDF real y devuelve 200 con el texto extraído", async () => {
     const app = setUpExtractApp();
 
-    const response = await request(app).post("/cv-import/extract-text").attach("file", fixturePath("sample-cv.pdf"));
+    const response = await sessionRequest(app).post("/cv-import/extract-text").attach("file", fixturePath("sample-cv.pdf"));
 
     expect(response.status).toBe(200);
     expect(response.body.text).toContain("Beta Inc - Backend Engineer - 2020 a 2022");
@@ -96,7 +104,7 @@ describe("POST /cv-import/extract-text", () => {
   it("devuelve 400 si no se adjunta ningún archivo", async () => {
     const app = setUpExtractApp();
 
-    const response = await request(app).post("/cv-import/extract-text");
+    const response = await sessionRequest(app).post("/cv-import/extract-text");
 
     expect(response.status).toBe(400);
   });
@@ -104,7 +112,7 @@ describe("POST /cv-import/extract-text", () => {
   it("devuelve 400 si el archivo tiene una extensión no soportada", async () => {
     const app = setUpExtractApp();
 
-    const response = await request(app)
+    const response = await sessionRequest(app)
       .post("/cv-import/extract-text")
       .attach("file", Buffer.from("hola"), "cv.txt");
 
@@ -114,7 +122,7 @@ describe("POST /cv-import/extract-text", () => {
   it("devuelve 422 si no se puede extraer texto útil del archivo (FileExtractionError)", async () => {
     const app = setUpExtractApp();
 
-    const response = await request(app).post("/cv-import/extract-text").attach("file", fixturePath("empty.pdf"));
+    const response = await sessionRequest(app).post("/cv-import/extract-text").attach("file", fixturePath("empty.pdf"));
 
     expect(response.status).toBe(422);
     expect(response.body.error).toBeDefined();
@@ -124,7 +132,7 @@ describe("POST /cv-import/extract-text", () => {
     const app = setUpExtractApp();
     const oversized = Buffer.alloc(6 * 1024 * 1024, "a");
 
-    const response = await request(app).post("/cv-import/extract-text").attach("file", oversized, "big.pdf");
+    const response = await sessionRequest(app).post("/cv-import/extract-text").attach("file", oversized, "big.pdf");
 
     expect(response.status).toBe(400);
   });
@@ -134,18 +142,18 @@ describe("POST /cv-import/confirm", () => {
   it("persiste el borrador y devuelve 201 con las entidades reales creadas", async () => {
     const { app, deps } = setUpApp(createFakeStructuredLLMProvider(""));
 
-    const response = await request(app).post("/cv-import/confirm").send(VALID_DRAFT);
+    const response = await sessionRequest(app).post("/cv-import/confirm").send(VALID_DRAFT);
 
     expect(response.status).toBe(201);
     expect(response.body.workExperiences).toHaveLength(1);
     expect(response.body.bullets).toHaveLength(1);
-    expect(await deps.workExperienceRepository.list()).toHaveLength(1);
+    expect(await deps.workExperienceRepository.list(TEST_SESSION_ID)).toHaveLength(1);
   });
 
   it("devuelve 400 si el borrador tiene un shape inválido", async () => {
     const { app } = setUpApp(createFakeStructuredLLMProvider(""));
 
-    const response = await request(app).post("/cv-import/confirm").send({ workExperiences: "no-es-un-array" });
+    const response = await sessionRequest(app).post("/cv-import/confirm").send({ workExperiences: "no-es-un-array" });
 
     expect(response.status).toBe(400);
   });
@@ -154,13 +162,36 @@ describe("POST /cv-import/confirm", () => {
     const { app, deps } = setUpApp(createFakeStructuredLLMProvider(""));
     await createWorkExperience(
       { company: "Acme Corp", role: "Backend Engineer", startDate: new Date("2020-01-01"), order: 1 },
+      TEST_SESSION_ID,
       deps.workExperienceRepository,
     );
 
-    const response = await request(app).post("/cv-import/confirm").send(VALID_DRAFT);
+    const response = await sessionRequest(app).post("/cv-import/confirm").send(VALID_DRAFT);
 
     expect(response.status).toBe(409);
     expect(response.body.error).toBeDefined();
-    expect(await deps.workExperienceRepository.list()).toHaveLength(1);
+    expect(await deps.workExperienceRepository.list(TEST_SESSION_ID)).toHaveLength(1);
+  });
+
+  it("no da 409 si la WorkExperience 'ya existente' es en realidad de otra sesión, y crea la nueva normalmente", async () => {
+    const { app, deps } = setUpApp(createFakeStructuredLLMProvider(""));
+    await createWorkExperience(
+      { company: "Acme Corp", role: "Backend Engineer", startDate: new Date("2020-01-01"), order: 1 },
+      OTHER_TEST_SESSION_ID,
+      deps.workExperienceRepository,
+    );
+
+    const response = await sessionRequest(app).post("/cv-import/confirm").send(VALID_DRAFT);
+
+    expect(response.status).toBe(201);
+    expect(await deps.workExperienceRepository.list(TEST_SESSION_ID)).toHaveLength(1);
+  });
+
+  it("devuelve 400 si falta el header X-Session-Id", async () => {
+    const { app } = setUpApp(createFakeStructuredLLMProvider(""));
+
+    const response = await request(app).post("/cv-import/confirm").send(VALID_DRAFT);
+
+    expect(response.status).toBe(400);
   });
 });

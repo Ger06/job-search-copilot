@@ -10,10 +10,11 @@ import { validateNoDuplicateWorkExperiences } from "./validate-no-duplicate-work
 
 export async function confirmParsedCV(
   draft: CVParseResult,
+  sessionId: string,
   repositories: { workExperienceRepository: WorkExperienceRepository; bulletRepository: BulletRepository },
   embeddingProvider: EmbeddingProvider,
 ): Promise<{ workExperiences: WorkExperience[]; bullets: Bullet[] }> {
-  await validateNoDuplicateWorkExperiences(draft, repositories.workExperienceRepository);
+  await validateNoDuplicateWorkExperiences(draft, sessionId, repositories.workExperienceRepository);
 
   const workExperiences: WorkExperience[] = [];
   const bullets: Bullet[] = [];
@@ -27,6 +28,7 @@ export async function confirmParsedCV(
         ...(draftWorkExperience.endDate !== null ? { endDate: new Date(draftWorkExperience.endDate) } : {}),
         order: index + 1,
       },
+      sessionId,
       repositories.workExperienceRepository,
     );
     workExperiences.push(workExperience);
@@ -34,6 +36,7 @@ export async function confirmParsedCV(
     for (const draftBullet of draftWorkExperience.bullets) {
       const bullet = await createBullet(
         { text: draftBullet.text, workExperienceId: workExperience.id },
+        sessionId,
         repositories.bulletRepository,
         repositories.workExperienceRepository,
         embeddingProvider,

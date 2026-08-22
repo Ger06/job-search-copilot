@@ -9,10 +9,11 @@ import { NotFoundError } from "../errors/not-found-error.js";
 // ya en el Bullet fuente — regla de honestidad no negociable del proyecto.
 export async function createSavedCV(
   input: { jobDescriptionId: string; content: string; coverLetterContent: string },
+  sessionId: string,
   repository: SavedCVRepository,
   jobDescriptionRepository: JobDescriptionRepository,
 ): Promise<SavedCV> {
-  if ((await jobDescriptionRepository.findById(input.jobDescriptionId)) === undefined) {
+  if ((await jobDescriptionRepository.findById(input.jobDescriptionId, sessionId)) === undefined) {
     throw new NotFoundError("JobDescription", input.jobDescriptionId);
   }
 
@@ -24,16 +25,17 @@ export async function createSavedCV(
     createdAt: new Date(),
   };
 
-  return repository.create(savedCV);
+  return repository.create(savedCV, sessionId);
 }
 
 export async function findSavedCVById(
   id: string,
+  sessionId: string,
   repository: SavedCVRepository,
 ): Promise<SavedCV | undefined> {
-  return repository.findById(id);
+  return repository.findById(id, sessionId);
 }
 
-export async function listSavedCVs(repository: SavedCVRepository): Promise<SavedCV[]> {
-  return repository.list();
+export async function listSavedCVs(sessionId: string, repository: SavedCVRepository): Promise<SavedCV[]> {
+  return repository.list(sessionId);
 }

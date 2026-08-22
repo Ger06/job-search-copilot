@@ -34,10 +34,10 @@ function toRow(workExperience: WorkExperience): WorkExperienceRow {
 }
 
 export class WorkExperienceRepositorySupabase implements WorkExperienceRepository {
-  async create(workExperience: WorkExperience): Promise<WorkExperience> {
+  async create(workExperience: WorkExperience, sessionId: string): Promise<WorkExperience> {
     const { data, error } = await supabase
       .from("work_experiences")
-      .insert(toRow(workExperience))
+      .insert({ ...toRow(workExperience), session_id: sessionId })
       .select()
       .single();
 
@@ -48,11 +48,12 @@ export class WorkExperienceRepositorySupabase implements WorkExperienceRepositor
     return toDomain(data as WorkExperienceRow);
   }
 
-  async findById(id: string): Promise<WorkExperience | undefined> {
+  async findById(id: string, sessionId: string): Promise<WorkExperience | undefined> {
     const { data, error } = await supabase
       .from("work_experiences")
       .select()
       .eq("id", id)
+      .eq("session_id", sessionId)
       .maybeSingle();
 
     if (error) {
@@ -62,8 +63,8 @@ export class WorkExperienceRepositorySupabase implements WorkExperienceRepositor
     return data ? toDomain(data as WorkExperienceRow) : undefined;
   }
 
-  async list(): Promise<WorkExperience[]> {
-    const { data, error } = await supabase.from("work_experiences").select();
+  async list(sessionId: string): Promise<WorkExperience[]> {
+    const { data, error } = await supabase.from("work_experiences").select().eq("session_id", sessionId);
 
     if (error) {
       throw new Error(`Error al listar work_experiences: ${error.message}`);

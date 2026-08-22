@@ -13,6 +13,7 @@ import { FabricatedContentError } from "../../errors/fabricated-content-error.js
 import { IncompleteCoverageError } from "../../errors/incomplete-coverage-error.js";
 import type { EmbeddingProvider } from "../../ports/embedding-provider.js";
 import type { LLMMessage, LLMProvider, LLMToolDefinition, LLMToolExecutor } from "../../ports/llm-provider.js";
+import { TEST_SESSION_ID, OTHER_TEST_SESSION_ID } from "../../__tests__/test-app-dependencies.js";
 
 function createFakeEmbeddingProvider(vector: number[] = [0.1, 0.2, 0.3]): EmbeddingProvider {
   return {
@@ -58,15 +59,18 @@ async function setUpFixture() {
   const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
   const jobDescription = await createJobDescription(
     { company: "Acme Corp", role: "Backend Engineer", rawText: "Buscamos un Backend Engineer con experiencia en Node.js" },
+    TEST_SESSION_ID,
     jobDescriptionRepository,
   );
   const workExperienceRepository = new InMemoryWorkExperienceRepository();
   const workExperienceA = await createWorkExperience(
     { company: "Beta Inc", role: "Software Engineer", startDate: new Date("2020-01-01"), order: 1 },
+    TEST_SESSION_ID,
     workExperienceRepository,
   );
   const workExperienceB = await createWorkExperience(
     { company: "Gamma LLC", role: "Tech Lead", startDate: new Date("2022-01-01"), order: 2 },
+    TEST_SESSION_ID,
     workExperienceRepository,
   );
   const bulletRepository = new InMemoryBulletRepository();
@@ -96,11 +100,34 @@ describe("generateTailoredCV", () => {
     await expect(
       generateTailoredCV(
         "no-existe",
+        TEST_SESSION_ID,
         { jobDescriptionRepository, workExperienceRepository, bulletRepository, savedCVRepository },
         embeddingProvider,
         llmProvider,
       ),
     ).rejects.toThrow(new NotFoundError("JobDescription", "no-existe"));
+  });
+
+  it("lanza NotFoundError si el jobDescriptionId existe pero es de otra sesión", async () => {
+    const fixture = await setUpFixture();
+    const llmProvider = createFakeLLMProvider(async () => {
+      throw new Error("no debería llamarse al LLMProvider");
+    });
+
+    await expect(
+      generateTailoredCV(
+        fixture.jobDescription.id,
+        OTHER_TEST_SESSION_ID,
+        {
+          jobDescriptionRepository: fixture.jobDescriptionRepository,
+          workExperienceRepository: fixture.workExperienceRepository,
+          bulletRepository: fixture.bulletRepository,
+          savedCVRepository: fixture.savedCVRepository,
+        },
+        fixture.embeddingProvider,
+        llmProvider,
+      ),
+    ).rejects.toThrow(new NotFoundError("JobDescription", fixture.jobDescription.id));
   });
 
   it("arma el SavedCV con el content y coverLetterContent de la primera y segunda llamada al LLMProvider", async () => {
@@ -116,6 +143,7 @@ describe("generateTailoredCV", () => {
 
     const result = await generateTailoredCV(
       fixture.jobDescription.id,
+      TEST_SESSION_ID,
       {
         jobDescriptionRepository: fixture.jobDescriptionRepository,
         workExperienceRepository: fixture.workExperienceRepository,
@@ -134,6 +162,7 @@ describe("generateTailoredCV", () => {
     const fixture = await setUpFixture();
     const bullet = await createBullet(
       { text: "Reduje el tiempo de build en 40%", workExperienceId: fixture.workExperienceA.id },
+      TEST_SESSION_ID,
       fixture.bulletRepository,
       fixture.workExperienceRepository,
       fixture.embeddingProvider,
@@ -152,6 +181,7 @@ describe("generateTailoredCV", () => {
 
     const result = await generateTailoredCV(
       fixture.jobDescription.id,
+      TEST_SESSION_ID,
       {
         jobDescriptionRepository: fixture.jobDescriptionRepository,
         workExperienceRepository: fixture.workExperienceRepository,
@@ -178,6 +208,7 @@ describe("generateTailoredCV", () => {
 
     await generateTailoredCV(
       fixture.jobDescription.id,
+      TEST_SESSION_ID,
       {
         jobDescriptionRepository: fixture.jobDescriptionRepository,
         workExperienceRepository: fixture.workExperienceRepository,
@@ -206,6 +237,7 @@ describe("generateTailoredCV", () => {
 
     await generateTailoredCV(
       fixture.jobDescription.id,
+      TEST_SESSION_ID,
       {
         jobDescriptionRepository: fixture.jobDescriptionRepository,
         workExperienceRepository: fixture.workExperienceRepository,
@@ -236,6 +268,7 @@ describe("generateTailoredCV", () => {
     await expect(
       generateTailoredCV(
         fixture.jobDescription.id,
+        TEST_SESSION_ID,
         {
           jobDescriptionRepository: fixture.jobDescriptionRepository,
           workExperienceRepository: fixture.workExperienceRepository,
@@ -247,7 +280,7 @@ describe("generateTailoredCV", () => {
       ),
     ).rejects.toThrow(FabricatedContentError);
 
-    expect(await fixture.savedCVRepository.list()).toEqual([]);
+    expect(await fixture.savedCVRepository.list(TEST_SESSION_ID)).toEqual([]);
   });
 
   it("lanza IncompleteCoverageError y no persiste nada si el LLMProvider solo cubre algunas work experience", async () => {
@@ -263,6 +296,7 @@ describe("generateTailoredCV", () => {
     await expect(
       generateTailoredCV(
         fixture.jobDescription.id,
+        TEST_SESSION_ID,
         {
           jobDescriptionRepository: fixture.jobDescriptionRepository,
           workExperienceRepository: fixture.workExperienceRepository,
@@ -274,7 +308,7 @@ describe("generateTailoredCV", () => {
       ),
     ).rejects.toThrow(IncompleteCoverageError);
 
-    expect(await fixture.savedCVRepository.list()).toEqual([]);
+    expect(await fixture.savedCVRepository.list(TEST_SESSION_ID)).toEqual([]);
   });
 
   it("chequea la cobertura antes que la honestidad: si ambas fallan, lanza IncompleteCoverageError", async () => {
@@ -290,6 +324,7 @@ describe("generateTailoredCV", () => {
     await expect(
       generateTailoredCV(
         fixture.jobDescription.id,
+        TEST_SESSION_ID,
         {
           jobDescriptionRepository: fixture.jobDescriptionRepository,
           workExperienceRepository: fixture.workExperienceRepository,
@@ -315,6 +350,7 @@ describe("generateTailoredCV", () => {
 
     const result = await generateTailoredCV(
       fixture.jobDescription.id,
+      TEST_SESSION_ID,
       {
         jobDescriptionRepository: fixture.jobDescriptionRepository,
         workExperienceRepository: fixture.workExperienceRepository,
@@ -325,22 +361,25 @@ describe("generateTailoredCV", () => {
       llmProvider,
     );
 
-    expect(await fixture.savedCVRepository.findById(result.savedCV.id)).toEqual(result.savedCV);
+    expect(await fixture.savedCVRepository.findById(result.savedCV.id, TEST_SESSION_ID)).toEqual(result.savedCV);
   });
 
   it("fitScore es el promedio de similitud coseno entre el embedding de la vacante y los bullets que la tool efectivamente trajo", async () => {
     const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
     const jobDescription = await createJobDescription(
       { company: "Acme Corp", role: "Backend Engineer", rawText: "vacante de backend" },
+      TEST_SESSION_ID,
       jobDescriptionRepository,
     );
     const workExperienceRepository = new InMemoryWorkExperienceRepository();
     const workExperienceA = await createWorkExperience(
       { company: "Beta Inc", role: "Software Engineer", startDate: new Date("2020-01-01"), order: 1 },
+      TEST_SESSION_ID,
       workExperienceRepository,
     );
     const workExperienceB = await createWorkExperience(
       { company: "Gamma LLC", role: "Tech Lead", startDate: new Date("2022-01-01"), order: 2 },
+      TEST_SESSION_ID,
       workExperienceRepository,
     );
     const vectorsByText: Record<string, number[]> = {
@@ -352,12 +391,14 @@ describe("generateTailoredCV", () => {
     const bulletRepository = new InMemoryBulletRepository();
     await createBullet(
       { text: "Reduje el tiempo de build en 40%", workExperienceId: workExperienceA.id },
+      TEST_SESSION_ID,
       bulletRepository,
       workExperienceRepository,
       embeddingProvider,
     );
     await createBullet(
       { text: "Organicé el picnic de la oficina", workExperienceId: workExperienceB.id },
+      TEST_SESSION_ID,
       bulletRepository,
       workExperienceRepository,
       embeddingProvider,
@@ -375,6 +416,7 @@ describe("generateTailoredCV", () => {
 
     const result = await generateTailoredCV(
       jobDescription.id,
+      TEST_SESSION_ID,
       { jobDescriptionRepository, workExperienceRepository, bulletRepository, savedCVRepository },
       embeddingProvider,
       llmProvider,
@@ -396,6 +438,7 @@ describe("generateTailoredCV", () => {
 
     const result = await generateTailoredCV(
       fixture.jobDescription.id,
+      TEST_SESSION_ID,
       {
         jobDescriptionRepository: fixture.jobDescriptionRepository,
         workExperienceRepository: fixture.workExperienceRepository,

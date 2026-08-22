@@ -4,6 +4,7 @@ import { InMemoryBulletRepository } from "../in-memory-bullet-repository.js";
 import { createWorkExperience } from "../../work-experiences/work-experience-service.js";
 import { InMemoryWorkExperienceRepository } from "../../work-experiences/in-memory-work-experience-repository.js";
 import { LocalEmbeddingProvider } from "../../ports/local-embedding-provider.js";
+import { TEST_SESSION_ID } from "../../__tests__/test-app-dependencies.js";
 
 describe("findRelevantBullets (integración, LocalEmbeddingProvider real)", () => {
   it("ordena primero el bullet más relacionado con el texto de la vacante", async () => {
@@ -15,6 +16,7 @@ describe("findRelevantBullets (integración, LocalEmbeddingProvider real)", () =
         startDate: new Date("2022-01-15"),
         order: 1,
       },
+      TEST_SESSION_ID,
       workExperienceRepository,
     );
     const bulletRepository = new InMemoryBulletRepository();
@@ -22,12 +24,14 @@ describe("findRelevantBullets (integración, LocalEmbeddingProvider real)", () =
 
     const relevantBullet = await createBullet(
       { text: "Optimicé el pipeline de CI y reduje el tiempo de build en 40%", workExperienceId: workExperience.id },
+      TEST_SESSION_ID,
       bulletRepository,
       workExperienceRepository,
       embeddingProvider,
     );
     await createBullet(
       { text: "Organicé el picnic anual de la oficina", workExperienceId: workExperience.id },
+      TEST_SESSION_ID,
       bulletRepository,
       workExperienceRepository,
       embeddingProvider,
@@ -36,6 +40,7 @@ describe("findRelevantBullets (integración, LocalEmbeddingProvider real)", () =
     const result = await findRelevantBullets(
       "Buscamos un ingeniero backend con experiencia optimizando pipelines de CI/CD",
       workExperience.id,
+      TEST_SESSION_ID,
       bulletRepository,
       embeddingProvider,
     );

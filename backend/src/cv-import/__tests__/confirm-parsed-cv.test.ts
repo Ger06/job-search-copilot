@@ -5,6 +5,7 @@ import { InMemoryBulletRepository } from "../../bullets/in-memory-bullet-reposit
 import { createWorkExperience } from "../../work-experiences/work-experience-service.js";
 import type { CVParseResult } from "../cv-parse-result.js";
 import type { EmbeddingProvider } from "../../ports/embedding-provider.js";
+import { TEST_SESSION_ID, OTHER_TEST_SESSION_ID } from "../../__tests__/test-app-dependencies.js";
 
 function createFakeEmbeddingProvider(vector: number[] = [0.1, 0.2, 0.3]): EmbeddingProvider {
   return {
@@ -40,13 +41,14 @@ describe("confirmParsedCV", () => {
 
     const result = await confirmParsedCV(
       DRAFT,
+      TEST_SESSION_ID,
       { workExperienceRepository, bulletRepository },
       createFakeEmbeddingProvider(),
     );
 
     expect(result.workExperiences).toHaveLength(2);
     expect(result.workExperiences.map((we) => we.company)).toEqual(["Acme Corp", "Beta Inc"]);
-    expect(await workExperienceRepository.list()).toHaveLength(2);
+    expect(await workExperienceRepository.list(TEST_SESSION_ID)).toHaveLength(2);
   });
 
   it("crea un Bullet por cada DraftBullet, asociado al workExperienceId real recién creado", async () => {
@@ -55,6 +57,7 @@ describe("confirmParsedCV", () => {
 
     const result = await confirmParsedCV(
       DRAFT,
+      TEST_SESSION_ID,
       { workExperienceRepository, bulletRepository },
       createFakeEmbeddingProvider(),
     );
@@ -74,6 +77,7 @@ describe("confirmParsedCV", () => {
 
     const result = await confirmParsedCV(
       DRAFT,
+      TEST_SESSION_ID,
       { workExperienceRepository, bulletRepository },
       createFakeEmbeddingProvider(),
     );
@@ -88,6 +92,7 @@ describe("confirmParsedCV", () => {
 
     const result = await confirmParsedCV(
       DRAFT,
+      TEST_SESSION_ID,
       { workExperienceRepository, bulletRepository },
       createFakeEmbeddingProvider(),
     );
@@ -102,12 +107,13 @@ describe("confirmParsedCV", () => {
 
     const result = await confirmParsedCV(
       DRAFT,
+      TEST_SESSION_ID,
       { workExperienceRepository, bulletRepository },
       createFakeEmbeddingProvider(),
     );
 
-    expect(await bulletRepository.list()).toEqual(result.bullets);
-    expect(await workExperienceRepository.list()).toEqual(result.workExperiences);
+    expect(await bulletRepository.list(TEST_SESSION_ID)).toEqual(result.bullets);
+    expect(await workExperienceRepository.list(TEST_SESSION_ID)).toEqual(result.workExperiences);
   });
 
   it("un borrador vacío devuelve workExperiences y bullets vacíos, sin error", async () => {
@@ -116,6 +122,7 @@ describe("confirmParsedCV", () => {
 
     const result = await confirmParsedCV(
       { workExperiences: [] },
+      TEST_SESSION_ID,
       { workExperienceRepository, bulletRepository },
       createFakeEmbeddingProvider(),
     );
@@ -128,13 +135,34 @@ describe("confirmParsedCV", () => {
     const bulletRepository = new InMemoryBulletRepository();
     await createWorkExperience(
       { company: "Acme Corp", role: "Backend Engineer", startDate: new Date("2020-01-01"), order: 1 },
+      TEST_SESSION_ID,
       workExperienceRepository,
     );
 
     await expect(
-      confirmParsedCV(DRAFT, { workExperienceRepository, bulletRepository }, createFakeEmbeddingProvider()),
+      confirmParsedCV(DRAFT, TEST_SESSION_ID, { workExperienceRepository, bulletRepository }, createFakeEmbeddingProvider()),
     ).rejects.toThrow("ya existe");
-    expect(await workExperienceRepository.list()).toHaveLength(1);
-    expect(await bulletRepository.list()).toHaveLength(0);
+    expect(await workExperienceRepository.list(TEST_SESSION_ID)).toHaveLength(1);
+    expect(await bulletRepository.list(TEST_SESSION_ID)).toHaveLength(0);
+  });
+
+  it("no lanza DuplicateError si la WorkExperience 'ya existente' es en realidad de otra sesión", async () => {
+    const workExperienceRepository = new InMemoryWorkExperienceRepository();
+    const bulletRepository = new InMemoryBulletRepository();
+    await createWorkExperience(
+      { company: "Acme Corp", role: "Backend Engineer", startDate: new Date("2020-01-01"), order: 1 },
+      OTHER_TEST_SESSION_ID,
+      workExperienceRepository,
+    );
+
+    const result = await confirmParsedCV(
+      DRAFT,
+      TEST_SESSION_ID,
+      { workExperienceRepository, bulletRepository },
+      createFakeEmbeddingProvider(),
+    );
+
+    expect(result.workExperiences).toHaveLength(2);
+    expect(await workExperienceRepository.list(TEST_SESSION_ID)).toHaveLength(2);
   });
 });

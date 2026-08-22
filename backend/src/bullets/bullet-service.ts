@@ -8,11 +8,12 @@ import { NotFoundError } from "../errors/not-found-error.js";
 
 export async function createBullet(
   input: { text: string; workExperienceId: string },
+  sessionId: string,
   repository: BulletRepository,
   workExperienceRepository: WorkExperienceRepository,
   embeddingProvider: EmbeddingProvider,
 ): Promise<Bullet> {
-  if ((await workExperienceRepository.findById(input.workExperienceId)) === undefined) {
+  if ((await workExperienceRepository.findById(input.workExperienceId, sessionId)) === undefined) {
     throw new NotFoundError("WorkExperience", input.workExperienceId);
   }
 
@@ -26,34 +27,37 @@ export async function createBullet(
     createdAt: new Date(),
   };
 
-  return repository.create(bullet);
+  return repository.create(bullet, sessionId);
 }
 
 export async function findBulletById(
   id: string,
+  sessionId: string,
   repository: BulletRepository,
 ): Promise<Bullet | undefined> {
-  return repository.findById(id);
+  return repository.findById(id, sessionId);
 }
 
-export async function listBullets(repository: BulletRepository): Promise<Bullet[]> {
-  return repository.list();
+export async function listBullets(sessionId: string, repository: BulletRepository): Promise<Bullet[]> {
+  return repository.list(sessionId);
 }
 
 export async function findBulletsByWorkExperienceId(
   workExperienceId: string,
+  sessionId: string,
   repository: BulletRepository,
 ): Promise<Bullet[]> {
-  return repository.findByWorkExperienceId(workExperienceId);
+  return repository.findByWorkExperienceId(workExperienceId, sessionId);
 }
 
 export async function findRelevantBullets(
   jobDescriptionText: string,
   workExperienceId: string,
+  sessionId: string,
   repository: BulletRepository,
   embeddingProvider: EmbeddingProvider,
 ): Promise<Bullet[]> {
-  const bullets = await findBulletsByWorkExperienceId(workExperienceId, repository);
+  const bullets = await findBulletsByWorkExperienceId(workExperienceId, sessionId, repository);
   const jobDescriptionEmbedding = await embeddingProvider.embed(jobDescriptionText);
 
   return [...bullets].sort(

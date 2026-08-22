@@ -7,7 +7,7 @@ import { JobDescriptionRepositorySupabase } from "../job-descriptions/job-descri
 import { SavedCVRepositorySupabase } from "../saved-cvs/saved-cv-repository-supabase.js";
 import { ApplicationRepositorySupabase } from "../applications/application-repository-supabase.js";
 import { supabase } from "../supabase-client.js";
-import { createFakeEmbeddingProvider, createUnusedLLMProvider } from "./test-app-dependencies.js";
+import { createFakeEmbeddingProvider, createUnusedLLMProvider, TEST_SESSION_ID } from "./test-app-dependencies.js";
 
 describe("app (integración, Supabase real)", () => {
   it("POST /work-experiences seguido de GET /work-experiences funciona de punta a punta contra Supabase real", async () => {
@@ -23,13 +23,14 @@ describe("app (integración, Supabase real)", () => {
 
     const createResponse = await request(app)
       .post("/work-experiences")
+      .set("X-Session-Id", TEST_SESSION_ID)
       .send({ company: `Smoke Test Co ${Date.now()}`, role: "QA Engineer", startDate: "2020-01-01", order: 1 });
 
     try {
       expect(createResponse.status).toBe(201);
       const createdId = createResponse.body.id as string;
 
-      const listResponse = await request(app).get("/work-experiences");
+      const listResponse = await request(app).get("/work-experiences").set("X-Session-Id", TEST_SESSION_ID);
 
       expect(listResponse.status).toBe(200);
       expect(listResponse.body.some((we: { id: string }) => we.id === createdId)).toBe(true);

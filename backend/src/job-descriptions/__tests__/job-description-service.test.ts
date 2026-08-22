@@ -6,6 +6,7 @@ import {
 } from "../job-description-service.js";
 import { InMemoryJobDescriptionRepository } from "../in-memory-job-description-repository.js";
 import { DuplicateError } from "../../errors/duplicate-error.js";
+import { TEST_SESSION_ID, OTHER_TEST_SESSION_ID } from "../../__tests__/test-app-dependencies.js";
 
 describe("createJobDescription", () => {
   it("crea una JobDescription con la company dada", async () => {
@@ -15,6 +16,7 @@ describe("createJobDescription", () => {
         role: "Backend Engineer",
         rawText: "Buscamos un Backend Engineer con experiencia en Node.js",
       },
+      TEST_SESSION_ID,
       new InMemoryJobDescriptionRepository(),
     );
 
@@ -28,6 +30,7 @@ describe("createJobDescription", () => {
         role: "Backend Engineer",
         rawText: "Buscamos un Backend Engineer con experiencia en Node.js",
       },
+      TEST_SESSION_ID,
       new InMemoryJobDescriptionRepository(),
     );
 
@@ -41,6 +44,7 @@ describe("createJobDescription", () => {
         role: "Backend Engineer",
         rawText: "Buscamos un Backend Engineer con experiencia en Node.js",
       },
+      TEST_SESSION_ID,
       new InMemoryJobDescriptionRepository(),
     );
 
@@ -57,6 +61,7 @@ describe("createJobDescription", () => {
         role: "Backend Engineer",
         rawText: "Buscamos un Backend Engineer con experiencia en Node.js",
       },
+      TEST_SESSION_ID,
       repository,
     );
     const second = await createJobDescription(
@@ -65,6 +70,7 @@ describe("createJobDescription", () => {
         role: "Tech Lead",
         rawText: "Buscamos un Tech Lead con experiencia en equipos distribuidos",
       },
+      TEST_SESSION_ID,
       repository,
     );
 
@@ -81,6 +87,7 @@ describe("createJobDescription", () => {
         role: "Backend Engineer",
         rawText: "Buscamos un Backend Engineer con experiencia en Node.js",
       },
+      TEST_SESSION_ID,
       new InMemoryJobDescriptionRepository(),
     );
     const after = new Date();
@@ -99,10 +106,11 @@ describe("createJobDescription", () => {
         role: "Backend Engineer",
         rawText: "Buscamos un Backend Engineer con experiencia en Node.js",
       },
+      TEST_SESSION_ID,
       repository,
     );
 
-    expect(await repository.findById(jobDescription.id)).toEqual(jobDescription);
+    expect(await repository.findById(jobDescription.id, TEST_SESSION_ID)).toEqual(jobDescription);
   });
 });
 
@@ -110,14 +118,27 @@ describe("findJobDescriptionById", () => {
   it("devuelve undefined si no existe una JobDescription con ese id", async () => {
     const repository = new InMemoryJobDescriptionRepository();
 
-    const result = await findJobDescriptionById("no-existe", repository);
+    const result = await findJobDescriptionById("no-existe", TEST_SESSION_ID, repository);
+
+    expect(result).toBeUndefined();
+  });
+
+  it("devuelve undefined si la JobDescription existe pero es de otra sesión", async () => {
+    const repository = new InMemoryJobDescriptionRepository();
+    const jobDescription = await createJobDescription(
+      { company: "Acme Corp", role: "Backend Engineer", rawText: "Buscamos un Backend Engineer" },
+      TEST_SESSION_ID,
+      repository,
+    );
+
+    const result = await findJobDescriptionById(jobDescription.id, OTHER_TEST_SESSION_ID, repository);
 
     expect(result).toBeUndefined();
   });
 });
 
 describe("listJobDescriptions", () => {
-  it("devuelve todas las JobDescriptions guardadas", async () => {
+  it("devuelve todas las JobDescriptions guardadas en esa sesión", async () => {
     const repository = new InMemoryJobDescriptionRepository();
     const first = await createJobDescription(
       {
@@ -125,6 +146,7 @@ describe("listJobDescriptions", () => {
         role: "Backend Engineer",
         rawText: "Buscamos un Backend Engineer con experiencia en Node.js",
       },
+      TEST_SESSION_ID,
       repository,
     );
     const second = await createJobDescription(
@@ -133,12 +155,26 @@ describe("listJobDescriptions", () => {
         role: "Tech Lead",
         rawText: "Buscamos un Tech Lead con experiencia en equipos distribuidos",
       },
+      TEST_SESSION_ID,
       repository,
     );
 
-    const result = await listJobDescriptions(repository);
+    const result = await listJobDescriptions(TEST_SESSION_ID, repository);
 
     expect(result).toEqual([first, second]);
+  });
+
+  it("una sesión no ve las JobDescription creadas por otra sesión", async () => {
+    const repository = new InMemoryJobDescriptionRepository();
+    await createJobDescription(
+      { company: "Acme Corp", role: "Backend Engineer", rawText: "Buscamos un Backend Engineer" },
+      TEST_SESSION_ID,
+      repository,
+    );
+
+    const result = await listJobDescriptions(OTHER_TEST_SESSION_ID, repository);
+
+    expect(result).toEqual([]);
   });
 });
 
@@ -152,13 +188,14 @@ describe("createJobDescription — duplicados", () => {
         role: "Backend Engineer",
         rawText: "Buscamos un Backend Engineer con experiencia en Node.js",
       },
+      TEST_SESSION_ID,
       repository,
     );
 
     expect(jobDescription.company).toBe("Acme Corp");
   });
 
-  it("lanza DuplicateError si ya existe una JobDescription con la misma company y role", async () => {
+  it("lanza DuplicateError si ya existe una JobDescription con la misma company y role en la misma sesión", async () => {
     const repository = new InMemoryJobDescriptionRepository();
     await createJobDescription(
       {
@@ -166,6 +203,7 @@ describe("createJobDescription — duplicados", () => {
         role: "Backend Engineer",
         rawText: "Buscamos un Backend Engineer con experiencia en Node.js",
       },
+      TEST_SESSION_ID,
       repository,
     );
 
@@ -176,6 +214,7 @@ describe("createJobDescription — duplicados", () => {
           role: "Backend Engineer",
           rawText: "Otra vacante distinta, mismo puesto",
         },
+        TEST_SESSION_ID,
         repository,
       ),
     ).rejects.toThrow(
@@ -191,6 +230,7 @@ describe("createJobDescription — duplicados", () => {
         role: "Backend Engineer",
         rawText: "Buscamos un Backend Engineer con experiencia en Node.js",
       },
+      TEST_SESSION_ID,
       repository,
     );
 
@@ -200,6 +240,7 @@ describe("createJobDescription — duplicados", () => {
         role: "Tech Lead",
         rawText: "Buscamos un Tech Lead con experiencia en equipos distribuidos",
       },
+      TEST_SESSION_ID,
       repository,
     );
 
@@ -214,6 +255,7 @@ describe("createJobDescription — duplicados", () => {
         role: "Backend Engineer",
         rawText: "Buscamos un Backend Engineer con experiencia en Node.js",
       },
+      TEST_SESSION_ID,
       repository,
     );
 
@@ -224,8 +266,34 @@ describe("createJobDescription — duplicados", () => {
           role: " backend engineer",
           rawText: "Otra vacante distinta, mismo puesto",
         },
+        TEST_SESSION_ID,
         repository,
       ),
     ).rejects.toThrow(DuplicateError);
+  });
+
+  it("permite crear la misma company y role en sesiones distintas (no hay conflicto cruzado)", async () => {
+    const repository = new InMemoryJobDescriptionRepository();
+    await createJobDescription(
+      {
+        company: "Acme Corp",
+        role: "Backend Engineer",
+        rawText: "Buscamos un Backend Engineer con experiencia en Node.js",
+      },
+      TEST_SESSION_ID,
+      repository,
+    );
+
+    const jobDescription = await createJobDescription(
+      {
+        company: "Acme Corp",
+        role: "Backend Engineer",
+        rawText: "Otra vacante, otra sesión",
+      },
+      OTHER_TEST_SESSION_ID,
+      repository,
+    );
+
+    expect(jobDescription.company).toBe("Acme Corp");
   });
 });

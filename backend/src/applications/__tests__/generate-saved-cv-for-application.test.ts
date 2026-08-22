@@ -12,6 +12,7 @@ import { InMemorySavedCVRepository } from "../../saved-cvs/in-memory-saved-cv-re
 import { NotFoundError } from "../../errors/not-found-error.js";
 import type { EmbeddingProvider } from "../../ports/embedding-provider.js";
 import type { LLMProvider } from "../../ports/llm-provider.js";
+import { TEST_SESSION_ID, OTHER_TEST_SESSION_ID } from "../../__tests__/test-app-dependencies.js";
 
 function createFakeEmbeddingProvider(vector: number[] = [0.1, 0.2, 0.3]): EmbeddingProvider {
   return {
@@ -44,11 +45,13 @@ async function setUpFixture() {
   const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
   const jobDescription = await createJobDescription(
     { company: "Acme Corp", role: "Backend Engineer", rawText: "Buscamos un Backend Engineer con experiencia en Node.js" },
+    TEST_SESSION_ID,
     jobDescriptionRepository,
   );
   const workExperienceRepository = new InMemoryWorkExperienceRepository();
   const workExperience = await createWorkExperience(
     { company: "Beta Inc", role: "Software Engineer", startDate: new Date("2020-01-01"), order: 1 },
+    TEST_SESSION_ID,
     workExperienceRepository,
   );
   const bulletRepository = new InMemoryBulletRepository();
@@ -56,6 +59,7 @@ async function setUpFixture() {
   const applicationRepository = new InMemoryApplicationRepository();
   const application = await createApplication(
     { jobDescriptionId: jobDescription.id },
+    TEST_SESSION_ID,
     applicationRepository,
     jobDescriptionRepository,
     savedCVRepository,
@@ -82,6 +86,7 @@ describe("generateSavedCVForApplication", () => {
     await expect(
       generateSavedCVForApplication(
         "no-existe",
+        TEST_SESSION_ID,
         {
           applicationRepository: fixture.applicationRepository,
           jobDescriptionRepository: fixture.jobDescriptionRepository,
@@ -95,11 +100,32 @@ describe("generateSavedCVForApplication", () => {
     ).rejects.toThrow(new NotFoundError("Application", "no-existe"));
   });
 
+  it("lanza NotFoundError si se intenta generar el CV de una Application de otra sesión", async () => {
+    const fixture = await setUpFixture();
+
+    await expect(
+      generateSavedCVForApplication(
+        fixture.application.id,
+        OTHER_TEST_SESSION_ID,
+        {
+          applicationRepository: fixture.applicationRepository,
+          jobDescriptionRepository: fixture.jobDescriptionRepository,
+          workExperienceRepository: fixture.workExperienceRepository,
+          bulletRepository: fixture.bulletRepository,
+          savedCVRepository: fixture.savedCVRepository,
+        },
+        fixture.embeddingProvider,
+        createFakeLLMProvider([fixture.workExperience.id]),
+      ),
+    ).rejects.toThrow(new NotFoundError("Application", fixture.application.id));
+  });
+
   it("genera el SavedCV y lo linkea (savedCvId) a la Application", async () => {
     const fixture = await setUpFixture();
 
     const updated = await generateSavedCVForApplication(
       fixture.application.id,
+      TEST_SESSION_ID,
       {
         applicationRepository: fixture.applicationRepository,
         jobDescriptionRepository: fixture.jobDescriptionRepository,
@@ -112,7 +138,7 @@ describe("generateSavedCVForApplication", () => {
     );
 
     expect(updated.savedCvId).not.toBeNull();
-    const savedCV = await fixture.savedCVRepository.findById(updated.savedCvId as string);
+    const savedCV = await fixture.savedCVRepository.findById(updated.savedCvId as string, TEST_SESSION_ID);
     expect(savedCV?.content).toBe("CONTENIDO DEL CV");
     expect(savedCV?.coverLetterContent).toBe("CONTENIDO DE LA COVER LETTER");
   });
@@ -122,6 +148,7 @@ describe("generateSavedCVForApplication", () => {
 
     const updated = await generateSavedCVForApplication(
       fixture.application.id,
+      TEST_SESSION_ID,
       {
         applicationRepository: fixture.applicationRepository,
         jobDescriptionRepository: fixture.jobDescriptionRepository,
@@ -137,6 +164,6 @@ describe("generateSavedCVForApplication", () => {
     // ningún bullet cargado — fitScore queda null, mismo comportamiento
     // ya probado en generateTailoredCV.
     expect(updated.fitScore).toBeNull();
-    expect(await fixture.applicationRepository.findById(fixture.application.id)).toEqual(updated);
+    expect(await fixture.applicationRepository.findById(fixture.application.id, TEST_SESSION_ID)).toEqual(updated);
   });
 });

@@ -31,8 +31,12 @@ function toRow(savedCV: SavedCV): SavedCVRow {
 }
 
 export class SavedCVRepositorySupabase implements SavedCVRepository {
-  async create(savedCV: SavedCV): Promise<SavedCV> {
-    const { data, error } = await supabase.from("saved_cvs").insert(toRow(savedCV)).select().single();
+  async create(savedCV: SavedCV, sessionId: string): Promise<SavedCV> {
+    const { data, error } = await supabase
+      .from("saved_cvs")
+      .insert({ ...toRow(savedCV), session_id: sessionId })
+      .select()
+      .single();
 
     if (error) {
       throw new Error(`Error al crear saved_cv: ${error.message}`);
@@ -41,8 +45,13 @@ export class SavedCVRepositorySupabase implements SavedCVRepository {
     return toDomain(data as SavedCVRow);
   }
 
-  async findById(id: string): Promise<SavedCV | undefined> {
-    const { data, error } = await supabase.from("saved_cvs").select().eq("id", id).maybeSingle();
+  async findById(id: string, sessionId: string): Promise<SavedCV | undefined> {
+    const { data, error } = await supabase
+      .from("saved_cvs")
+      .select()
+      .eq("id", id)
+      .eq("session_id", sessionId)
+      .maybeSingle();
 
     if (error) {
       throw new Error(`Error al buscar saved_cv: ${error.message}`);
@@ -51,8 +60,8 @@ export class SavedCVRepositorySupabase implements SavedCVRepository {
     return data ? toDomain(data as SavedCVRow) : undefined;
   }
 
-  async list(): Promise<SavedCV[]> {
-    const { data, error } = await supabase.from("saved_cvs").select();
+  async list(sessionId: string): Promise<SavedCV[]> {
+    const { data, error } = await supabase.from("saved_cvs").select().eq("session_id", sessionId);
 
     if (error) {
       throw new Error(`Error al listar saved_cvs: ${error.message}`);

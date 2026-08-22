@@ -4,9 +4,10 @@ import { DuplicateError } from "../errors/duplicate-error.js";
 
 export async function validateNoDuplicateWorkExperiences(
   draft: CVParseResult,
+  sessionId: string,
   repository: WorkExperienceRepository,
 ): Promise<void> {
-  const existing = await repository.list();
+  const existing = await repository.list(sessionId);
 
   for (const draftWorkExperience of draft.workExperiences) {
     const normalizedCompany = draftWorkExperience.company.trim().toLowerCase();

@@ -12,7 +12,11 @@ export function createJobDescriptionRouter(deps: { jobDescriptionRepository: Job
       const role = requireString(req.body, "role");
       const rawText = requireString(req.body, "rawText");
 
-      const jobDescription = await createJobDescription({ company, role, rawText }, deps.jobDescriptionRepository);
+      const jobDescription = await createJobDescription(
+        { company, role, rawText },
+        req.sessionId,
+        deps.jobDescriptionRepository,
+      );
 
       res.status(201).json(jobDescription);
     } catch (error) {
@@ -20,9 +24,9 @@ export function createJobDescriptionRouter(deps: { jobDescriptionRepository: Job
     }
   });
 
-  router.get("/job-descriptions", async (_req, res, next) => {
+  router.get("/job-descriptions", async (req, res, next) => {
     try {
-      const jobDescriptions = await listJobDescriptions(deps.jobDescriptionRepository);
+      const jobDescriptions = await listJobDescriptions(req.sessionId, deps.jobDescriptionRepository);
       res.status(200).json(jobDescriptions);
     } catch (error) {
       next(error);

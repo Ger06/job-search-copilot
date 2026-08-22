@@ -14,6 +14,7 @@ import { createCvImportRouter } from "./cv-import/cv-import-router.js";
 import type { EmbeddingProvider } from "./ports/embedding-provider.js";
 import type { LLMProvider } from "./ports/llm-provider.js";
 import { errorHandlerMiddleware } from "./http/error-handler-middleware.js";
+import { sessionMiddleware } from "./http/session-middleware.js";
 
 export type AppDependencies = {
   workExperienceRepository: WorkExperienceRepository;
@@ -32,8 +33,9 @@ const FRONTEND_ORIGIN = "http://localhost:3000";
 
 export function createApp(deps: AppDependencies): Express {
   const app = express();
-  app.use(cors({ origin: FRONTEND_ORIGIN }));
+  app.use(cors({ origin: FRONTEND_ORIGIN, allowedHeaders: ["Content-Type", "X-Session-Id"] }));
   app.use(express.json());
+  app.use(sessionMiddleware);
 
   app.use(createWorkExperienceRouter({ workExperienceRepository: deps.workExperienceRepository }));
   app.use(

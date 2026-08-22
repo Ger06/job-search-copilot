@@ -9,9 +9,10 @@ export async function createJobDescription(
     role: string;
     rawText: string;
   },
+  sessionId: string,
   repository: JobDescriptionRepository,
 ): Promise<JobDescription> {
-  if ((await repository.findByCompanyAndRole(input.company, input.role)) !== undefined) {
+  if ((await repository.findByCompanyAndRole(input.company, input.role, sessionId)) !== undefined) {
     throw new DuplicateError("JobDescription", { company: input.company, role: input.role });
   }
 
@@ -23,18 +24,20 @@ export async function createJobDescription(
     createdAt: new Date(),
   };
 
-  return repository.create(jobDescription);
+  return repository.create(jobDescription, sessionId);
 }
 
 export async function findJobDescriptionById(
   id: string,
+  sessionId: string,
   repository: JobDescriptionRepository,
 ): Promise<JobDescription | undefined> {
-  return repository.findById(id);
+  return repository.findById(id, sessionId);
 }
 
 export async function listJobDescriptions(
+  sessionId: string,
   repository: JobDescriptionRepository,
 ): Promise<JobDescription[]> {
-  return repository.list();
+  return repository.list(sessionId);
 }

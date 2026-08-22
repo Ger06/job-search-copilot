@@ -16,6 +16,7 @@ export function createWorkExperienceRouter(deps: { workExperienceRepository: Wor
 
       const workExperience = await createWorkExperience(
         { company, role, startDate, ...(endDate !== undefined ? { endDate } : {}), order },
+        req.sessionId,
         deps.workExperienceRepository,
       );
 
@@ -25,9 +26,9 @@ export function createWorkExperienceRouter(deps: { workExperienceRepository: Wor
     }
   });
 
-  router.get("/work-experiences", async (_req, res, next) => {
+  router.get("/work-experiences", async (req, res, next) => {
     try {
-      const workExperiences = await listWorkExperiences(deps.workExperienceRepository);
+      const workExperiences = await listWorkExperiences(req.sessionId, deps.workExperienceRepository);
       res.status(200).json(workExperiences);
     } catch (error) {
       next(error);

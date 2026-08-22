@@ -37,8 +37,12 @@ function toRow(bullet: Bullet): BulletRow {
 }
 
 export class BulletRepositorySupabase implements BulletRepository {
-  async create(bullet: Bullet): Promise<Bullet> {
-    const { data, error } = await supabase.from("bullets").insert(toRow(bullet)).select().single();
+  async create(bullet: Bullet, sessionId: string): Promise<Bullet> {
+    const { data, error } = await supabase
+      .from("bullets")
+      .insert({ ...toRow(bullet), session_id: sessionId })
+      .select()
+      .single();
 
     if (error) {
       throw new Error(`Error al crear bullet: ${error.message}`);
@@ -47,8 +51,13 @@ export class BulletRepositorySupabase implements BulletRepository {
     return toDomain(data as BulletRow);
   }
 
-  async findById(id: string): Promise<Bullet | undefined> {
-    const { data, error } = await supabase.from("bullets").select().eq("id", id).maybeSingle();
+  async findById(id: string, sessionId: string): Promise<Bullet | undefined> {
+    const { data, error } = await supabase
+      .from("bullets")
+      .select()
+      .eq("id", id)
+      .eq("session_id", sessionId)
+      .maybeSingle();
 
     if (error) {
       throw new Error(`Error al buscar bullet: ${error.message}`);
@@ -57,8 +66,8 @@ export class BulletRepositorySupabase implements BulletRepository {
     return data ? toDomain(data as BulletRow) : undefined;
   }
 
-  async list(): Promise<Bullet[]> {
-    const { data, error } = await supabase.from("bullets").select();
+  async list(sessionId: string): Promise<Bullet[]> {
+    const { data, error } = await supabase.from("bullets").select().eq("session_id", sessionId);
 
     if (error) {
       throw new Error(`Error al listar bullets: ${error.message}`);
@@ -67,11 +76,12 @@ export class BulletRepositorySupabase implements BulletRepository {
     return (data as BulletRow[]).map(toDomain);
   }
 
-  async findByWorkExperienceId(workExperienceId: string): Promise<Bullet[]> {
+  async findByWorkExperienceId(workExperienceId: string, sessionId: string): Promise<Bullet[]> {
     const { data, error } = await supabase
       .from("bullets")
       .select()
-      .eq("work_experience_id", workExperienceId);
+      .eq("work_experience_id", workExperienceId)
+      .eq("session_id", sessionId);
 
     if (error) {
       throw new Error(`Error al buscar bullets por work_experience_id: ${error.message}`);

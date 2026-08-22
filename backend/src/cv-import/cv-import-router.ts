@@ -98,6 +98,7 @@ export function createCvImportRouter(deps: {
 
       const result = await confirmParsedCV(
         draft,
+        req.sessionId,
         { workExperienceRepository: deps.workExperienceRepository, bulletRepository: deps.bulletRepository },
         deps.embeddingProvider,
       );

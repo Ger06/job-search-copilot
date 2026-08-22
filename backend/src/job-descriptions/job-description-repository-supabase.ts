@@ -31,10 +31,10 @@ function toRow(jobDescription: JobDescription): JobDescriptionRow {
 }
 
 export class JobDescriptionRepositorySupabase implements JobDescriptionRepository {
-  async create(jobDescription: JobDescription): Promise<JobDescription> {
+  async create(jobDescription: JobDescription, sessionId: string): Promise<JobDescription> {
     const { data, error } = await supabase
       .from("job_descriptions")
-      .insert(toRow(jobDescription))
+      .insert({ ...toRow(jobDescription), session_id: sessionId })
       .select()
       .single();
 
@@ -45,11 +45,12 @@ export class JobDescriptionRepositorySupabase implements JobDescriptionRepositor
     return toDomain(data as JobDescriptionRow);
   }
 
-  async findById(id: string): Promise<JobDescription | undefined> {
+  async findById(id: string, sessionId: string): Promise<JobDescription | undefined> {
     const { data, error } = await supabase
       .from("job_descriptions")
       .select()
       .eq("id", id)
+      .eq("session_id", sessionId)
       .maybeSingle();
 
     if (error) {
@@ -59,8 +60,8 @@ export class JobDescriptionRepositorySupabase implements JobDescriptionRepositor
     return data ? toDomain(data as JobDescriptionRow) : undefined;
   }
 
-  async list(): Promise<JobDescription[]> {
-    const { data, error } = await supabase.from("job_descriptions").select();
+  async list(sessionId: string): Promise<JobDescription[]> {
+    const { data, error } = await supabase.from("job_descriptions").select().eq("session_id", sessionId);
 
     if (error) {
       throw new Error(`Error al listar job_descriptions: ${error.message}`);
@@ -69,11 +70,11 @@ export class JobDescriptionRepositorySupabase implements JobDescriptionRepositor
     return (data as JobDescriptionRow[]).map(toDomain);
   }
 
-  async findByCompanyAndRole(company: string, role: string): Promise<JobDescription | undefined> {
+  async findByCompanyAndRole(company: string, role: string, sessionId: string): Promise<JobDescription | undefined> {
     const normalizedCompany = company.trim().toLowerCase();
     const normalizedRole = role.trim().toLowerCase();
 
-    const all = await this.list();
+    const all = await this.list(sessionId);
 
     return all.find(
       (jd) =>

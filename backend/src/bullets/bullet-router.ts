@@ -19,6 +19,7 @@ export function createBulletRouter(deps: {
 
       const bullet = await createBullet(
         { text, workExperienceId },
+        req.sessionId,
         deps.bulletRepository,
         deps.workExperienceRepository,
         deps.embeddingProvider,
@@ -30,9 +31,9 @@ export function createBulletRouter(deps: {
     }
   });
 
-  router.get("/bullets", async (_req, res, next) => {
+  router.get("/bullets", async (req, res, next) => {
     try {
-      const bullets = await listBullets(deps.bulletRepository);
+      const bullets = await listBullets(req.sessionId, deps.bulletRepository);
       res.status(200).json(bullets);
     } catch (error) {
       next(error);

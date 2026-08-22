@@ -15,6 +15,7 @@ import { GroqLLMProvider } from "../../ports/groq-llm-provider.js";
 import { FabricatedContentError } from "../../errors/fabricated-content-error.js";
 import type { EmbeddingProvider } from "../../ports/embedding-provider.js";
 import type { LLMProvider } from "../../ports/llm-provider.js";
+import { TEST_SESSION_ID } from "../../__tests__/test-app-dependencies.js";
 
 function createFakeEmbeddingProvider(vector: number[] = [0.1, 0.2, 0.3]): EmbeddingProvider {
   return {
@@ -53,20 +54,20 @@ class RecordingBulletRepository implements BulletRepository {
 
   constructor(private readonly inner: BulletRepository) {}
 
-  create(bullet: Bullet): Promise<Bullet> {
-    return this.inner.create(bullet);
+  create(bullet: Bullet, sessionId: string): Promise<Bullet> {
+    return this.inner.create(bullet, sessionId);
   }
 
-  findById(id: string): Promise<Bullet | undefined> {
-    return this.inner.findById(id);
+  findById(id: string, sessionId: string): Promise<Bullet | undefined> {
+    return this.inner.findById(id, sessionId);
   }
 
-  list(): Promise<Bullet[]> {
-    return this.inner.list();
+  list(sessionId: string): Promise<Bullet[]> {
+    return this.inner.list(sessionId);
   }
 
-  async findByWorkExperienceId(workExperienceId: string): Promise<Bullet[]> {
-    const bullets = await this.inner.findByWorkExperienceId(workExperienceId);
+  async findByWorkExperienceId(workExperienceId: string, sessionId: string): Promise<Bullet[]> {
+    const bullets = await this.inner.findByWorkExperienceId(workExperienceId, sessionId);
     this.calls.push({ workExperienceId, bullets });
     return bullets;
   }
@@ -88,16 +89,19 @@ describe("generateTailoredCV — evals con Groq real (integración)", () => {
           rawText:
             "Buscamos un Backend Engineer con experiencia optimizando pipelines de CI/CD y liderando equipos de desarrollo.",
         },
+        TEST_SESSION_ID,
         jobDescriptionRepository,
       );
 
       const workExperienceRepository = new InMemoryWorkExperienceRepository();
       const backendExperience = await createWorkExperience(
         { company: "Beta Inc", role: "Backend Engineer", startDate: new Date("2020-03-01"), order: 1 },
+        TEST_SESSION_ID,
         workExperienceRepository,
       );
       const frontendExperience = await createWorkExperience(
         { company: "Gamma LLC", role: "Frontend Developer", startDate: new Date("2022-06-01"), order: 2 },
+        TEST_SESSION_ID,
         workExperienceRepository,
       );
 
@@ -105,24 +109,28 @@ describe("generateTailoredCV — evals con Groq real (integración)", () => {
       const innerBulletRepository = new InMemoryBulletRepository();
       await createBullet(
         { text: "Reduje el tiempo de build en 40% optimizando el pipeline de CI", workExperienceId: backendExperience.id },
+        TEST_SESSION_ID,
         innerBulletRepository,
         workExperienceRepository,
         embeddingProvider,
       );
       await createBullet(
         { text: "Lideré un equipo de 5 personas en la migración a microservicios", workExperienceId: backendExperience.id },
+        TEST_SESSION_ID,
         innerBulletRepository,
         workExperienceRepository,
         embeddingProvider,
       );
       await createBullet(
         { text: "Mejoré el Lighthouse score de 62 a 95 en la landing principal", workExperienceId: frontendExperience.id },
+        TEST_SESSION_ID,
         innerBulletRepository,
         workExperienceRepository,
         embeddingProvider,
       );
       await createBullet(
         { text: "Reduje el bundle size en 30% con code splitting", workExperienceId: frontendExperience.id },
+        TEST_SESSION_ID,
         innerBulletRepository,
         workExperienceRepository,
         embeddingProvider,
@@ -134,6 +142,7 @@ describe("generateTailoredCV — evals con Groq real (integración)", () => {
 
       const { savedCV } = await generateTailoredCV(
         jobDescription.id,
+        TEST_SESSION_ID,
         { jobDescriptionRepository, workExperienceRepository, bulletRepository, savedCVRepository },
         embeddingProvider,
         llmProvider,
@@ -168,7 +177,7 @@ describe("generateTailoredCV — evals con Groq real (integración)", () => {
       expect(savedCV.content).not.toBe(savedCV.coverLetterContent);
 
       // Eval 4 — persistencia end-to-end.
-      expect(await savedCVRepository.findById(savedCV.id)).toEqual(savedCV);
+      expect(await savedCVRepository.findById(savedCV.id, TEST_SESSION_ID)).toEqual(savedCV);
     },
     60000,
   );
@@ -179,11 +188,13 @@ describe("generateTailoredCV — guardrail anti-identidad-inventada", () => {
     const jobDescriptionRepository = new InMemoryJobDescriptionRepository();
     const jobDescription = await createJobDescription(
       { company: "Acme Corp", role: "Backend Engineer", rawText: "Buscamos un Backend Engineer con experiencia en Node.js" },
+      TEST_SESSION_ID,
       jobDescriptionRepository,
     );
     const workExperienceRepository = new InMemoryWorkExperienceRepository();
     const workExperience = await createWorkExperience(
       { company: "Beta Inc", role: "Backend Engineer", startDate: new Date("2020-03-01"), order: 1 },
+      TEST_SESSION_ID,
       workExperienceRepository,
     );
     const bulletRepository = new InMemoryBulletRepository();
@@ -194,12 +205,13 @@ describe("generateTailoredCV — guardrail anti-identidad-inventada", () => {
     await expect(
       generateTailoredCV(
         jobDescription.id,
+        TEST_SESSION_ID,
         { jobDescriptionRepository, workExperienceRepository, bulletRepository, savedCVRepository },
         embeddingProvider,
         llmProvider,
       ),
     ).rejects.toThrow(FabricatedContentError);
 
-    expect(await savedCVRepository.list()).toEqual([]);
+    expect(await savedCVRepository.list(TEST_SESSION_ID)).toEqual([]);
   });
 });

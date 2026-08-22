@@ -3,6 +3,7 @@ import { validateNoDuplicateWorkExperiences } from "../validate-no-duplicate-wor
 import { InMemoryWorkExperienceRepository } from "../../work-experiences/in-memory-work-experience-repository.js";
 import { createWorkExperience } from "../../work-experiences/work-experience-service.js";
 import type { CVParseResult } from "../cv-parse-result.js";
+import { TEST_SESSION_ID, OTHER_TEST_SESSION_ID } from "../../__tests__/test-app-dependencies.js";
 
 function draftWith(workExperiences: CVParseResult["workExperiences"]): CVParseResult {
   return { workExperiences };
@@ -15,20 +16,21 @@ describe("validateNoDuplicateWorkExperiences", () => {
       { company: "Acme Corp", role: "Backend Engineer", startDate: "2020-01-01", endDate: null, bullets: [] },
     ]);
 
-    await expect(validateNoDuplicateWorkExperiences(draft, repository)).resolves.toBeUndefined();
+    await expect(validateNoDuplicateWorkExperiences(draft, TEST_SESSION_ID, repository)).resolves.toBeUndefined();
   });
 
   it("lanza DuplicateError si ya existe una WorkExperience con el mismo company, role y startDate", async () => {
     const repository = new InMemoryWorkExperienceRepository();
     await createWorkExperience(
       { company: "Acme Corp", role: "Backend Engineer", startDate: new Date("2020-01-01"), order: 1 },
+      TEST_SESSION_ID,
       repository,
     );
     const draft = draftWith([
       { company: "Acme Corp", role: "Backend Engineer", startDate: "2020-01-01", endDate: null, bullets: [] },
     ]);
 
-    await expect(validateNoDuplicateWorkExperiences(draft, repository)).rejects.toThrow(
+    await expect(validateNoDuplicateWorkExperiences(draft, TEST_SESSION_ID, repository)).rejects.toThrow(
       "WorkExperience con company 'Acme Corp' y role 'Backend Engineer' y startDate '2020-01-01' ya existe",
     );
   });
@@ -37,25 +39,41 @@ describe("validateNoDuplicateWorkExperiences", () => {
     const repository = new InMemoryWorkExperienceRepository();
     await createWorkExperience(
       { company: "Acme Corp", role: "Backend Engineer", startDate: new Date("2020-01-01"), order: 1 },
+      TEST_SESSION_ID,
       repository,
     );
     const draft = draftWith([
       { company: "  ACME CORP  ", role: " backend engineer ", startDate: "2020-01-01", endDate: null, bullets: [] },
     ]);
 
-    await expect(validateNoDuplicateWorkExperiences(draft, repository)).rejects.toThrow("ya existe");
+    await expect(validateNoDuplicateWorkExperiences(draft, TEST_SESSION_ID, repository)).rejects.toThrow("ya existe");
   });
 
   it("no lanza si company y role coinciden pero el startDate es distinto (re-empleo legítimo)", async () => {
     const repository = new InMemoryWorkExperienceRepository();
     await createWorkExperience(
       { company: "Acme Corp", role: "Backend Engineer", startDate: new Date("2018-01-01"), order: 1 },
+      TEST_SESSION_ID,
       repository,
     );
     const draft = draftWith([
       { company: "Acme Corp", role: "Backend Engineer", startDate: "2021-01-01", endDate: null, bullets: [] },
     ]);
 
-    await expect(validateNoDuplicateWorkExperiences(draft, repository)).resolves.toBeUndefined();
+    await expect(validateNoDuplicateWorkExperiences(draft, TEST_SESSION_ID, repository)).resolves.toBeUndefined();
+  });
+
+  it("no lanza si la WorkExperience con mismo company/role/startDate es de otra sesión", async () => {
+    const repository = new InMemoryWorkExperienceRepository();
+    await createWorkExperience(
+      { company: "Acme Corp", role: "Backend Engineer", startDate: new Date("2020-01-01"), order: 1 },
+      OTHER_TEST_SESSION_ID,
+      repository,
+    );
+    const draft = draftWith([
+      { company: "Acme Corp", role: "Backend Engineer", startDate: "2020-01-01", endDate: null, bullets: [] },
+    ]);
+
+    await expect(validateNoDuplicateWorkExperiences(draft, TEST_SESSION_ID, repository)).resolves.toBeUndefined();
   });
 });

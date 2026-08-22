@@ -32,20 +32,20 @@ class RecordingBulletRepository implements BulletRepository {
 
   constructor(private readonly inner: BulletRepository) {}
 
-  create(bullet: Bullet): Promise<Bullet> {
-    return this.inner.create(bullet);
+  create(bullet: Bullet, sessionId: string): Promise<Bullet> {
+    return this.inner.create(bullet, sessionId);
   }
 
-  findById(id: string): Promise<Bullet | undefined> {
-    return this.inner.findById(id);
+  findById(id: string, sessionId: string): Promise<Bullet | undefined> {
+    return this.inner.findById(id, sessionId);
   }
 
-  list(): Promise<Bullet[]> {
-    return this.inner.list();
+  list(sessionId: string): Promise<Bullet[]> {
+    return this.inner.list(sessionId);
   }
 
-  async findByWorkExperienceId(workExperienceId: string): Promise<Bullet[]> {
-    const bullets = await this.inner.findByWorkExperienceId(workExperienceId);
+  async findByWorkExperienceId(workExperienceId: string, sessionId: string): Promise<Bullet[]> {
+    const bullets = await this.inner.findByWorkExperienceId(workExperienceId, sessionId);
     this.queriedWorkExperienceIds.push(workExperienceId);
     this.fetchedBullets.push(...bullets);
     return bullets;
@@ -91,6 +91,7 @@ Escribí una cover letter en texto plano/markdown para esta vacante, basada úni
 
 export async function generateTailoredCV(
   jobDescriptionId: string,
+  sessionId: string,
   repositories: {
     jobDescriptionRepository: JobDescriptionRepository;
     workExperienceRepository: WorkExperienceRepository;
@@ -100,12 +101,12 @@ export async function generateTailoredCV(
   embeddingProvider: EmbeddingProvider,
   llmProvider: LLMProvider,
 ): Promise<{ savedCV: SavedCV; fitScore: number | null }> {
-  const jobDescription = await findJobDescriptionById(jobDescriptionId, repositories.jobDescriptionRepository);
+  const jobDescription = await findJobDescriptionById(jobDescriptionId, sessionId, repositories.jobDescriptionRepository);
   if (jobDescription === undefined) {
     throw new NotFoundError("JobDescription", jobDescriptionId);
   }
 
-  const workExperiences = await listWorkExperiences(repositories.workExperienceRepository);
+  const workExperiences = await listWorkExperiences(sessionId, repositories.workExperienceRepository);
   const recordingBulletRepository = new RecordingBulletRepository(repositories.bulletRepository);
 
   const content = await llmProvider.generate(
@@ -114,7 +115,7 @@ export async function generateTailoredCV(
       { role: "user", content: buildCVUserPrompt(jobDescription, workExperiences) },
     ],
     [GET_RELEVANT_BULLETS_TOOL],
-    createGetRelevantBulletsExecutor(jobDescription.rawText, recordingBulletRepository, embeddingProvider),
+    createGetRelevantBulletsExecutor(jobDescription.rawText, sessionId, recordingBulletRepository, embeddingProvider),
   );
   validateAllWorkExperiencesCovered(
     workExperiences.map((workExperience) => workExperience.id),
@@ -139,6 +140,7 @@ export async function generateTailoredCV(
 
   const savedCV = await createSavedCV(
     { jobDescriptionId, content, coverLetterContent },
+    sessionId,
     repositories.savedCVRepository,
     repositories.jobDescriptionRepository,
   );

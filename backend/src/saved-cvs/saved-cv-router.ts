@@ -9,7 +9,7 @@ export function createSavedCVRouter(deps: { savedCVRepository: SavedCVRepository
   router.get("/saved-cvs/:id", async (req, res, next) => {
     try {
       const id = req.params["id"] as string;
-      const savedCV = await findSavedCVById(id, deps.savedCVRepository);
+      const savedCV = await findSavedCVById(id, req.sessionId, deps.savedCVRepository);
       if (savedCV === undefined) {
         throw new NotFoundError("SavedCV", id);
       }

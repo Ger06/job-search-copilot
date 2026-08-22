@@ -5,6 +5,7 @@ import {
   listWorkExperiences,
 } from "../work-experience-service.js";
 import { InMemoryWorkExperienceRepository } from "../in-memory-work-experience-repository.js";
+import { TEST_SESSION_ID, OTHER_TEST_SESSION_ID } from "../../__tests__/test-app-dependencies.js";
 
 describe("createWorkExperience", () => {
   it("crea un work experience con la company dada", async () => {
@@ -15,6 +16,7 @@ describe("createWorkExperience", () => {
         startDate: new Date("2022-01-15"),
         order: 1,
       },
+      TEST_SESSION_ID,
       new InMemoryWorkExperienceRepository(),
     );
 
@@ -30,6 +32,7 @@ describe("createWorkExperience", () => {
         startDate: new Date("2022-01-15"),
         order: 1,
       },
+      TEST_SESSION_ID,
       repository,
     );
     const second = await createWorkExperience(
@@ -39,6 +42,7 @@ describe("createWorkExperience", () => {
         startDate: new Date("2022-01-15"),
         order: 1,
       },
+      TEST_SESSION_ID,
       repository,
     );
 
@@ -55,6 +59,7 @@ describe("createWorkExperience", () => {
         startDate: new Date("2022-01-15"),
         order: 1,
       },
+      TEST_SESSION_ID,
       new InMemoryWorkExperienceRepository(),
     );
 
@@ -70,6 +75,7 @@ describe("createWorkExperience", () => {
         startDate,
         order: 1,
       },
+      TEST_SESSION_ID,
       new InMemoryWorkExperienceRepository(),
     );
 
@@ -84,6 +90,7 @@ describe("createWorkExperience", () => {
         startDate: new Date("2022-01-15"),
         order: 1,
       },
+      TEST_SESSION_ID,
       new InMemoryWorkExperienceRepository(),
     );
 
@@ -100,6 +107,7 @@ describe("createWorkExperience", () => {
         endDate,
         order: 1,
       },
+      TEST_SESSION_ID,
       new InMemoryWorkExperienceRepository(),
     );
 
@@ -114,6 +122,7 @@ describe("createWorkExperience", () => {
         startDate: new Date("2022-01-15"),
         order: 1,
       },
+      TEST_SESSION_ID,
       new InMemoryWorkExperienceRepository(),
     );
 
@@ -130,10 +139,11 @@ describe("createWorkExperience", () => {
         startDate: new Date("2022-01-15"),
         order: 1,
       },
+      TEST_SESSION_ID,
       repository,
     );
 
-    expect(await repository.findById(workExperience.id)).toEqual(workExperience);
+    expect(await repository.findById(workExperience.id, TEST_SESSION_ID)).toEqual(workExperience);
   });
 });
 
@@ -141,14 +151,27 @@ describe("findWorkExperienceById", () => {
   it("devuelve undefined si no existe un work experience con ese id", async () => {
     const repository = new InMemoryWorkExperienceRepository();
 
-    const result = await findWorkExperienceById("no-existe", repository);
+    const result = await findWorkExperienceById("no-existe", TEST_SESSION_ID, repository);
+
+    expect(result).toBeUndefined();
+  });
+
+  it("devuelve undefined si el work experience existe pero es de otra sesión", async () => {
+    const repository = new InMemoryWorkExperienceRepository();
+    const workExperience = await createWorkExperience(
+      { company: "Acme Corp", role: "Backend Engineer", startDate: new Date("2022-01-15"), order: 1 },
+      TEST_SESSION_ID,
+      repository,
+    );
+
+    const result = await findWorkExperienceById(workExperience.id, OTHER_TEST_SESSION_ID, repository);
 
     expect(result).toBeUndefined();
   });
 });
 
 describe("listWorkExperiences", () => {
-  it("devuelve todos los work experiences guardados", async () => {
+  it("devuelve todos los work experiences guardados en esa sesión", async () => {
     const repository = new InMemoryWorkExperienceRepository();
     const first = await createWorkExperience(
       {
@@ -157,6 +180,7 @@ describe("listWorkExperiences", () => {
         startDate: new Date("2022-01-15"),
         order: 1,
       },
+      TEST_SESSION_ID,
       repository,
     );
     const second = await createWorkExperience(
@@ -166,11 +190,25 @@ describe("listWorkExperiences", () => {
         startDate: new Date("2023-07-01"),
         order: 2,
       },
+      TEST_SESSION_ID,
       repository,
     );
 
-    const result = await listWorkExperiences(repository);
+    const result = await listWorkExperiences(TEST_SESSION_ID, repository);
 
     expect(result).toEqual([first, second]);
+  });
+
+  it("una sesión no ve los work experiences creados por otra sesión", async () => {
+    const repository = new InMemoryWorkExperienceRepository();
+    await createWorkExperience(
+      { company: "Acme Corp", role: "Backend Engineer", startDate: new Date("2022-01-15"), order: 1 },
+      TEST_SESSION_ID,
+      repository,
+    );
+
+    const result = await listWorkExperiences(OTHER_TEST_SESSION_ID, repository);
+
+    expect(result).toEqual([]);
   });
 });

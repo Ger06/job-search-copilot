@@ -10,6 +10,7 @@ export async function createWorkExperience(
     endDate?: Date;
     order: number;
   },
+  sessionId: string,
   repository: WorkExperienceRepository,
 ): Promise<WorkExperience> {
   const workExperience: WorkExperience = {
@@ -21,21 +22,23 @@ export async function createWorkExperience(
     order: input.order,
   };
 
-  return repository.create(workExperience);
+  return repository.create(workExperience, sessionId);
 }
 
 export async function findWorkExperienceById(
   id: string,
+  sessionId: string,
   repository: WorkExperienceRepository,
 ): Promise<WorkExperience | undefined> {
-  return repository.findById(id);
+  return repository.findById(id, sessionId);
 }
 
 // Cuando se genere un CV, deben aparecer TODAS las WorkExperience del
 // historial, nunca menos — esto va a ser un hook más adelante sobre este
 // listado.
 export async function listWorkExperiences(
+  sessionId: string,
   repository: WorkExperienceRepository,
 ): Promise<WorkExperience[]> {
-  return repository.list();
+  return repository.list(sessionId);
 }

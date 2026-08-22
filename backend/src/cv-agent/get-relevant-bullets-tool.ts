@@ -22,6 +22,7 @@ export const GET_RELEVANT_BULLETS_TOOL: LLMToolDefinition = {
 
 export function createGetRelevantBulletsExecutor(
   jobDescriptionText: string,
+  sessionId: string,
   bulletRepository: BulletRepository,
   embeddingProvider: EmbeddingProvider,
 ): LLMToolExecutor {
@@ -35,7 +36,7 @@ export function createGetRelevantBulletsExecutor(
       throw new Error("work_experience_id inválido: se esperaba un string");
     }
 
-    const bullets = await findRelevantBullets(jobDescriptionText, workExperienceId, bulletRepository, embeddingProvider);
+    const bullets = await findRelevantBullets(jobDescriptionText, workExperienceId, sessionId, bulletRepository, embeddingProvider);
     return JSON.stringify(bullets.map((bullet) => bullet.text));
   };
 }

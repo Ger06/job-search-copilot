@@ -12,6 +12,7 @@ import { generateTailoredCV } from "../cv-agent/cv-agent-service.js";
 
 export async function generateSavedCVForApplication(
   applicationId: string,
+  sessionId: string,
   repositories: {
     applicationRepository: ApplicationRepository;
     jobDescriptionRepository: JobDescriptionRepository;
@@ -22,13 +23,14 @@ export async function generateSavedCVForApplication(
   embeddingProvider: EmbeddingProvider,
   llmProvider: LLMProvider,
 ): Promise<Application> {
-  const application = await repositories.applicationRepository.findById(applicationId);
+  const application = await repositories.applicationRepository.findById(applicationId, sessionId);
   if (application === undefined) {
     throw new NotFoundError("Application", applicationId);
   }
 
   const { savedCV, fitScore } = await generateTailoredCV(
     application.jobDescriptionId,
+    sessionId,
     {
       jobDescriptionRepository: repositories.jobDescriptionRepository,
       workExperienceRepository: repositories.workExperienceRepository,
@@ -39,5 +41,5 @@ export async function generateSavedCVForApplication(
     llmProvider,
   );
 
-  return linkSavedCVToApplication(applicationId, savedCV.id, fitScore, repositories.applicationRepository);
+  return linkSavedCVToApplication(applicationId, savedCV.id, fitScore, sessionId, repositories.applicationRepository);
 }

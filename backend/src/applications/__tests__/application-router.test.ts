@@ -3,7 +3,7 @@ import request from "supertest";
 import { createApp } from "../../app.js";
 import { createJobDescription } from "../../job-descriptions/job-description-service.js";
 import { createApplication } from "../application-service.js";
-import { createTestAppDependencies } from "../../__tests__/test-app-dependencies.js";
+import { createTestAppDependencies, sessionRequest, TEST_SESSION_ID, OTHER_TEST_SESSION_ID } from "../../__tests__/test-app-dependencies.js";
 import type { LLMProvider } from "../../ports/llm-provider.js";
 
 function createFakeLLMProvider(firstCallContent: string): LLMProvider {
@@ -25,6 +25,7 @@ async function setUpApp(overrides: Parameters<typeof createTestAppDependencies>[
   const app = createApp(deps);
   const jobDescription = await createJobDescription(
     { company: "Acme Corp", role: "Backend Engineer", rawText: "Buscamos un Backend Engineer" },
+    TEST_SESSION_ID,
     deps.jobDescriptionRepository,
   );
   return { app, deps, jobDescription };
@@ -34,7 +35,7 @@ describe("POST /applications", () => {
   it("crea una Application y devuelve 201 con status 'pendiente'", async () => {
     const { app, jobDescription } = await setUpApp();
 
-    const response = await request(app).post("/applications").send({ jobDescriptionId: jobDescription.id });
+    const response = await sessionRequest(app).post("/applications").send({ jobDescriptionId: jobDescription.id });
 
     expect(response.status).toBe(201);
     expect(response.body).toMatchObject({ jobDescriptionId: jobDescription.id, status: "pendiente" });
@@ -43,7 +44,7 @@ describe("POST /applications", () => {
   it("devuelve 400 si falta jobDescriptionId", async () => {
     const { app } = await setUpApp();
 
-    const response = await request(app).post("/applications").send({});
+    const response = await sessionRequest(app).post("/applications").send({});
 
     expect(response.status).toBe(400);
   });
@@ -51,22 +52,51 @@ describe("POST /applications", () => {
   it("devuelve 404 si el jobDescriptionId no existe", async () => {
     const { app } = await setUpApp();
 
-    const response = await request(app).post("/applications").send({ jobDescriptionId: "no-existe" });
+    const response = await sessionRequest(app).post("/applications").send({ jobDescriptionId: "no-existe" });
 
     expect(response.status).toBe(404);
     expect(response.body.error).toBeDefined();
   });
+
+  it("devuelve 404 si el jobDescriptionId existe pero es de otra sesión", async () => {
+    const { app, jobDescription } = await setUpApp();
+
+    const response = await request(app)
+      .post("/applications")
+      .set("X-Session-Id", "otra-sesion")
+      .send({ jobDescriptionId: jobDescription.id });
+
+    expect(response.status).toBe(404);
+  });
+
+  it("devuelve 400 si falta el header X-Session-Id", async () => {
+    const { app, jobDescription } = await setUpApp();
+
+    const response = await request(app).post("/applications").send({ jobDescriptionId: jobDescription.id });
+
+    expect(response.status).toBe(400);
+  });
 });
 
 describe("GET /applications", () => {
-  it("devuelve 200 con todas las Application guardadas", async () => {
+  it("devuelve 200 con todas las Application guardadas en esa sesión", async () => {
     const { app, jobDescription } = await setUpApp();
-    await request(app).post("/applications").send({ jobDescriptionId: jobDescription.id });
+    await sessionRequest(app).post("/applications").send({ jobDescriptionId: jobDescription.id });
 
-    const response = await request(app).get("/applications");
+    const response = await sessionRequest(app).get("/applications");
 
     expect(response.status).toBe(200);
     expect(response.body).toHaveLength(1);
+  });
+
+  it("una sesión no ve las Application creadas por otra sesión", async () => {
+    const { app, jobDescription } = await setUpApp();
+    await sessionRequest(app).post("/applications").send({ jobDescriptionId: jobDescription.id });
+
+    const response = await request(app).get("/applications").set("X-Session-Id", "otra-sesion");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([]);
   });
 });
 
@@ -75,12 +105,13 @@ describe("PATCH /applications/:id/status", () => {
     const { app, deps, jobDescription } = await setUpApp();
     const application = await createApplication(
       { jobDescriptionId: jobDescription.id },
+      TEST_SESSION_ID,
       deps.applicationRepository,
       deps.jobDescriptionRepository,
       deps.savedCVRepository,
     );
 
-    const response = await request(app).patch(`/applications/${application.id}/status`).send({ status: "enviada" });
+    const response = await sessionRequest(app).patch(`/applications/${application.id}/status`).send({ status: "enviada" });
 
     expect(response.status).toBe(200);
     expect(response.body.status).toBe("enviada");
@@ -90,12 +121,15 @@ describe("PATCH /applications/:id/status", () => {
     const { app, deps, jobDescription } = await setUpApp();
     const application = await createApplication(
       { jobDescriptionId: jobDescription.id },
+      TEST_SESSION_ID,
       deps.applicationRepository,
       deps.jobDescriptionRepository,
       deps.savedCVRepository,
     );
 
-    const response = await request(app).patch(`/applications/${application.id}/status`).send({ status: "no-es-un-status" });
+    const response = await sessionRequest(app)
+      .patch(`/applications/${application.id}/status`)
+      .send({ status: "no-es-un-status" });
 
     expect(response.status).toBe(400);
   });
@@ -103,9 +137,34 @@ describe("PATCH /applications/:id/status", () => {
   it("devuelve 404 si la Application no existe", async () => {
     const { app } = await setUpApp();
 
-    const response = await request(app).patch("/applications/no-existe/status").send({ status: "enviada" });
+    const response = await sessionRequest(app).patch("/applications/no-existe/status").send({ status: "enviada" });
 
     expect(response.status).toBe(404);
+  });
+
+  // Este es el caso de la Fase 3 que más importa verificar explícito: una
+  // Application creada en session-A no puede ser modificada mandando el
+  // header de session-B, ni siquiera conociendo su id real.
+  it("devuelve 404 si se intenta cambiar el status de una Application de otra sesión", async () => {
+    const { app, deps, jobDescription } = await setUpApp();
+    const application = await createApplication(
+      { jobDescriptionId: jobDescription.id },
+      TEST_SESSION_ID,
+      deps.applicationRepository,
+      deps.jobDescriptionRepository,
+      deps.savedCVRepository,
+    );
+
+    const response = await request(app)
+      .patch(`/applications/${application.id}/status`)
+      .set("X-Session-Id", OTHER_TEST_SESSION_ID)
+      .send({ status: "oferta" });
+
+    expect(response.status).toBe(404);
+
+    // Confirma que el intento desde session-B no modificó nada.
+    const stillPendiente = await sessionRequest(app).get("/applications");
+    expect(stillPendiente.body[0].status).toBe("pendiente");
   });
 });
 
@@ -114,12 +173,13 @@ describe("PATCH /applications/:id/details", () => {
     const { app, deps, jobDescription } = await setUpApp();
     const application = await createApplication(
       { jobDescriptionId: jobDescription.id },
+      TEST_SESSION_ID,
       deps.applicationRepository,
       deps.jobDescriptionRepository,
       deps.savedCVRepository,
     );
 
-    const response = await request(app)
+    const response = await sessionRequest(app)
       .patch(`/applications/${application.id}/details`)
       .send({ recruiter: "Jane Doe" });
 
@@ -132,12 +192,13 @@ describe("PATCH /applications/:id/details", () => {
     const { app, deps, jobDescription } = await setUpApp();
     const application = await createApplication(
       { jobDescriptionId: jobDescription.id },
+      TEST_SESSION_ID,
       deps.applicationRepository,
       deps.jobDescriptionRepository,
       deps.savedCVRepository,
     );
 
-    const response = await request(app).patch(`/applications/${application.id}/details`).send({ recruiter: 123 });
+    const response = await sessionRequest(app).patch(`/applications/${application.id}/details`).send({ recruiter: 123 });
 
     expect(response.status).toBe(400);
   });
@@ -145,7 +206,25 @@ describe("PATCH /applications/:id/details", () => {
   it("devuelve 404 si la Application no existe", async () => {
     const { app } = await setUpApp();
 
-    const response = await request(app).patch("/applications/no-existe/details").send({ recruiter: "Jane Doe" });
+    const response = await sessionRequest(app).patch("/applications/no-existe/details").send({ recruiter: "Jane Doe" });
+
+    expect(response.status).toBe(404);
+  });
+
+  it("devuelve 404 si se intenta actualizar detalles de una Application de otra sesión", async () => {
+    const { app, deps, jobDescription } = await setUpApp();
+    const application = await createApplication(
+      { jobDescriptionId: jobDescription.id },
+      TEST_SESSION_ID,
+      deps.applicationRepository,
+      deps.jobDescriptionRepository,
+      deps.savedCVRepository,
+    );
+
+    const response = await request(app)
+      .patch(`/applications/${application.id}/details`)
+      .set("X-Session-Id", OTHER_TEST_SESSION_ID)
+      .send({ recruiter: "Intruso" });
 
     expect(response.status).toBe(404);
   });
@@ -154,15 +233,24 @@ describe("PATCH /applications/:id/details", () => {
 describe("GET /applications/export.csv", () => {
   it("devuelve 200 con Content-Type text/csv y el header esperado", async () => {
     const { app, jobDescription } = await setUpApp();
-    await request(app).post("/applications").send({ jobDescriptionId: jobDescription.id });
+    await sessionRequest(app).post("/applications").send({ jobDescriptionId: jobDescription.id });
 
-    const response = await request(app).get("/applications/export.csv");
+    const response = await sessionRequest(app).get("/applications/export.csv");
 
     expect(response.status).toBe(200);
     expect(response.headers["content-type"]).toContain("text/csv");
     expect(response.text.split("\n")[0]).toBe(
       "id,company,role,status,recruiter,portal,salaryRequested,fitScore,notes,savedCvId,createdAt,updatedAt",
     );
+  });
+
+  it("no incluye Applications de otra sesión", async () => {
+    const { app, jobDescription } = await setUpApp();
+    await sessionRequest(app).post("/applications").send({ jobDescriptionId: jobDescription.id });
+
+    const response = await request(app).get("/applications/export.csv").set("X-Session-Id", "otra-sesion");
+
+    expect(response.text.split("\n")).toHaveLength(1);
   });
 });
 
@@ -172,12 +260,13 @@ describe("POST /applications/:id/generate-cv", () => {
     const { app, deps, jobDescription } = await setUpApp({ llmProvider });
     const application = await createApplication(
       { jobDescriptionId: jobDescription.id },
+      TEST_SESSION_ID,
       deps.applicationRepository,
       deps.jobDescriptionRepository,
       deps.savedCVRepository,
     );
 
-    const response = await request(app).post(`/applications/${application.id}/generate-cv`);
+    const response = await sessionRequest(app).post(`/applications/${application.id}/generate-cv`);
 
     expect(response.status).toBe(200);
     expect(response.body.savedCvId).not.toBeNull();
@@ -186,7 +275,25 @@ describe("POST /applications/:id/generate-cv", () => {
   it("devuelve 404 si la Application no existe", async () => {
     const { app } = await setUpApp();
 
-    const response = await request(app).post("/applications/no-existe/generate-cv");
+    const response = await sessionRequest(app).post("/applications/no-existe/generate-cv");
+
+    expect(response.status).toBe(404);
+  });
+
+  it("devuelve 404 si se intenta generar el CV de una Application de otra sesión", async () => {
+    const llmProvider = createFakeLLMProvider("CONTENIDO DEL CV");
+    const { app, deps, jobDescription } = await setUpApp({ llmProvider });
+    const application = await createApplication(
+      { jobDescriptionId: jobDescription.id },
+      TEST_SESSION_ID,
+      deps.applicationRepository,
+      deps.jobDescriptionRepository,
+      deps.savedCVRepository,
+    );
+
+    const response = await request(app)
+      .post(`/applications/${application.id}/generate-cv`)
+      .set("X-Session-Id", OTHER_TEST_SESSION_ID);
 
     expect(response.status).toBe(404);
   });
@@ -194,21 +301,25 @@ describe("POST /applications/:id/generate-cv", () => {
   it("devuelve 422 si el LLMProvider no cubre todas las WorkExperience (IncompleteCoverageError)", async () => {
     const llmProvider = createFakeLLMProvider("CONTENIDO DEL CV");
     const { app, deps, jobDescription } = await setUpApp({ llmProvider });
-    await deps.workExperienceRepository.create({
-      id: "we-1",
-      company: "Beta Inc",
-      role: "Software Engineer",
-      startDate: new Date("2020-01-01"),
-      order: 1,
-    });
+    await deps.workExperienceRepository.create(
+      {
+        id: "we-1",
+        company: "Beta Inc",
+        role: "Software Engineer",
+        startDate: new Date("2020-01-01"),
+        order: 1,
+      },
+      TEST_SESSION_ID,
+    );
     const application = await createApplication(
       { jobDescriptionId: jobDescription.id },
+      TEST_SESSION_ID,
       deps.applicationRepository,
       deps.jobDescriptionRepository,
       deps.savedCVRepository,
     );
 
-    const response = await request(app).post(`/applications/${application.id}/generate-cv`);
+    const response = await sessionRequest(app).post(`/applications/${application.id}/generate-cv`);
 
     expect(response.status).toBe(422);
     expect(response.body.error).toBeDefined();
