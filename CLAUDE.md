@@ -32,6 +32,15 @@ App que tailorea CVs y cover letters para búsquedas laborales, usando un
   Los tests de servicios usan siempre el repo in-memory, nunca Supabase real.
 - Nombres de archivo en kebab-case. Componentes React en PascalCase.
 
+## Limitaciones conocidas
+
+- El aislamiento entre usuarios es por sesión (`X-Session-Id`), no por
+  autenticación real: no hay contraseña ni verificación de identidad.
+  Cualquiera que tenga el código de una sesión puede acceder a esos datos
+  como si fuera su dueño — es aislamiento accidental entre usuarios de
+  buena fe, no protección contra alguien que intente acceder
+  deliberadamente a datos ajenos.
+
 Reglas no negociables (una página, cero métricas inventadas, tests deben
 pasar antes de commit) están enforced por hooks, no reescribir acá — ver
 `.claude/hooks/`.

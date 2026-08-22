@@ -3,10 +3,15 @@ import type { JobDescription } from "./job-description";
 import type { Application, ApplicationStatus } from "./application";
 import type { SavedCV } from "./saved-cv";
 import type { WorkExperience } from "./work-experience";
+import { getOrCreateSessionId } from "./session";
 
 export class ApiError extends Error {}
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+
+function sessionHeaders(): Record<string, string> {
+  return { "X-Session-Id": getOrCreateSessionId() };
+}
 
 async function requestJson<T>(makeRequest: () => Promise<Response>): Promise<T> {
   let response: Response;
@@ -36,25 +41,27 @@ export function postJson<T>(path: string, body: unknown): Promise<T> {
   return requestJson<T>(() =>
     fetch(`${API_URL}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...sessionHeaders() },
       body: JSON.stringify(body),
     }),
   );
 }
 
 export function postFormData<T>(path: string, formData: FormData): Promise<T> {
-  return requestJson<T>(() => fetch(`${API_URL}${path}`, { method: "POST", body: formData }));
+  // Sin Content-Type acá a propósito: el browser tiene que setearlo solo
+  // (incluye el boundary de multipart) — si lo pisamos, el request queda roto.
+  return requestJson<T>(() => fetch(`${API_URL}${path}`, { method: "POST", headers: sessionHeaders(), body: formData }));
 }
 
 export function getJson<T>(path: string): Promise<T> {
-  return requestJson<T>(() => fetch(`${API_URL}${path}`));
+  return requestJson<T>(() => fetch(`${API_URL}${path}`, { headers: sessionHeaders() }));
 }
 
 export function patchJson<T>(path: string, body: unknown): Promise<T> {
   return requestJson<T>(() =>
     fetch(`${API_URL}${path}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...sessionHeaders() },
       body: JSON.stringify(body),
     }),
   );
