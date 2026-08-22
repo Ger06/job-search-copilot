@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CopySessionCodeButton, useSessionId } from "@/components/session-code";
+import { SESSION_ONBOARDING_TITLE, SessionOnboardingDescription } from "@/components/session-onboarding-banner";
 import { setSessionId } from "@/lib/session";
 
 export default function SessionPage() {
@@ -24,6 +26,11 @@ export default function SessionPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-6 py-12">
+      <Alert>
+        <AlertTitle>{SESSION_ONBOARDING_TITLE}</AlertTitle>
+        <SessionOnboardingDescription />
+      </Alert>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">Tu sesión</CardTitle>

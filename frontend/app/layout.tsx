@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans, Newsreader } from "next/font/google";
 import { SiteNav } from "@/components/site-nav";
+import { SessionOnboardingBanner } from "@/components/session-onboarding-banner";
 import "./globals.css";
 
 const newsreader = Newsreader({
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <SiteNav />
+        <SessionOnboardingBanner />
         {children}
       </body>
     </html>
