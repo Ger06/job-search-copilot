@@ -26,13 +26,22 @@ export type AppDependencies = {
   llmProvider: LLMProvider;
 };
 
-// Puerto real del frontend en dev (`next dev`, confirmado en el log de
-// arranque) — único origen habilitado por ahora, no hay frontend
-// desplegado en ningún otro lado todavía.
-const FRONTEND_ORIGIN = "http://localhost:3000";
+// ALLOWED_ORIGIN la setea Render en producción, apuntando al dominio real
+// de Vercel. Sin esa env var (dev local), cae al puerto real del
+// frontend en dev (`next dev`, confirmado en el log de arranque).
+const FRONTEND_ORIGIN = process.env["ALLOWED_ORIGIN"] || "http://localhost:3000";
 
 export function createApp(deps: AppDependencies): Express {
   const app = express();
+
+  // Antes que nada, incluso antes de cors()/sessionMiddleware: el probe
+  // de health check de Render no manda X-Session-Id ni Origin de
+  // navegador, así que esta ruta tiene que quedar completamente afuera
+  // de esos middlewares para poder responder 200 siempre.
+  app.get("/health", (_req, res) => {
+    res.status(200).json({ status: "ok" });
+  });
+
   app.use(cors({ origin: FRONTEND_ORIGIN, allowedHeaders: ["Content-Type", "X-Session-Id"] }));
   app.use(express.json());
   app.use(sessionMiddleware);
